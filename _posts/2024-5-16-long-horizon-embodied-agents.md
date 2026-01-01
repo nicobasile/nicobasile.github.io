@@ -5,8 +5,7 @@ categories: [embodied-ai, agents]
 author: Nicolas Basile
 ---
 
-
-Open‑world 3D environments like Minecraft are a uniquely challenging setting for embodied agents: rewards are sparse, action spaces are enormous, and complex tasks require extended temporal reasoning. 
+Building on the foundation of **NVIDIA’s Voyager**, this project introduces a self-optimizing agent architecture. By combining **structured hierarchical memory** with **DSPy-driven policy search**, I demonstrate how we can improve success rates by ~20% while significantly reducing the inference cost needed to get there.
 
 <div style="display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;">
   <video autoplay controls playsinline muted loop style="width:100%; border-radius:12px;">
@@ -43,6 +42,19 @@ On a suite of multi-stage objectives, these changes improved success rates an av
 - Evaluation: 5 random seeds × 4 episodes per seed = 20 episodes/task (no initial inventory).
 - Prompting iterations: number of planner/tool-selector regeneration attempts, capped at 50 as in Voyager.
 - Success criteria: Task dependent - typically an inventory check, or structure built.
+
+---
+## Table of Contents
+- [What I built](#what-i-built)
+  - [1) Structured memory](#1-structured-memory)
+  - [2) Hierarchical planning](#2-hierarchical-planning)
+  - [3) Tool use that actually holds up over long horizons](#3-tool-use-that-actually-holds-up-over-long-horizons)
+- [Prompt + policy improvement via DSPy](#prompt--policy-improvement-via-dspy)
+  - [VLMs as reward models](#vlms-as-reward-models)
+  - [DSPy turns scaffolding design into optimization](#dspy-turns-scaffolding-design-into-optimization)
+- [Why this matters](#why-this-matters)
+  - [Related work: Odyssey (open-world skills)](#related-work-odyssey-open-world-skills)
+- [References](#references)
 
 ---
 
