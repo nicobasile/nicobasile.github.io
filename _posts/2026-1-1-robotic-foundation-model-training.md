@@ -5,6 +5,39 @@ categories: [embodied-ai, robotics]
 author: Nicolas Basile
 ---
 
+<figure class="image">
+  <div class="gif-grid">
+    <div class="gif-wrapper">
+      <img src="/videos/side-1.gif" alt="GIF 1" />
+    </div>
+
+  <div class="gif-wrapper">
+    <img src="/videos/top-1.gif" alt="GIF 3" />
+  </div>
+
+  <div class="gif-wrapper">
+    <img src="/videos/side-2.gif" alt="GIF 4" />
+  </div>
+
+  <div class="gif-wrapper">
+    <img src="/videos/top-2.gif" alt="GIF 2" />
+  </div>
+  </div>
+
+  <figcaption style="margin-top:8px; color:#9aa0a6; font-size: 0.9em;">
+    <b>Top:</b> From the final fine-tuned model we see more confident movement (Exp. E)<br>
+    <b>Bottom:</b> Jittery + uncertain movement from a less performant training run (Exp. D)
+  </figcaption>
+
+</figure>
+
+<!-- <div style="margin-top:8px; color:#9aa0a6; font-size: 0.9em;">
+  <b>Top:</b> From the final fine-tuned model we see more confident movement (Experiment E.)<br>
+  <b>Bottom:</b> Jittery + uncertain movement from a less performant training run (Experiment D.)
+</div> -->
+
+## Introduction
+
 In my previous work with Minecraft agents, actions were discrete. If the VLM output `move_to_coords(X, Y, Z)`, the game engine **guaranteed** the physics. The agent never had to calculate torque or friction. However, that "code-as-action" paradigm exposes two critical bottlenecks when applied to real-world robotics:
 
 1. **Autoregressive Latency:** Generating tokens is too slow for dynamic control loops (e.g., <10Hz).
@@ -51,29 +84,6 @@ This post documents the counter-intuitive reality of VLA fine-tuning: **too much
     display: block; /* Removes tiny inline spacing gaps */
   }
 </style>
-
-<div class="gif-grid">
-  <div class="gif-wrapper">
-    <img src="/videos/side-1.gif" alt="GIF 1" />
-  </div>
-
-  <div class="gif-wrapper">
-     <img src="/videos/top-1.gif" alt="GIF 3" />
-  </div>
-
-  <div class="gif-wrapper">
-     <img src="/videos/side-2.gif" alt="GIF 4" />
-  </div>
-
-  <div class="gif-wrapper">
-     <img src="/videos/top-2.gif" alt="GIF 2" />
-  </div>
-</div>
-
-<div style="margin-top:8px; color:#9aa0a6; font-size: 0.9em;">
-  <b>Top:</b> From the final fine-tuned model we see more confident movement (Experiment D.)<br>
-  <b>Bottom:</b> Jittery + uncertain movement from a less performant training run (Experiment C.)
-</div>
 
 ---
 
