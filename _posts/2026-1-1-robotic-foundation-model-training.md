@@ -20,9 +20,12 @@ author: Nicolas Basile
       <img src="/videos/top-2.gif" alt="GIF 2" />
     </div>
   </div>
-  <figcaption style="margin-top:8px; color:#9aa0a6; font-size: 0.9em;">
-    <b>Top:</b> From the final fine-tuned model we see more confident movement (Exp. E)<br>
-    <b>Bottom:</b> Jittery + uncertain movement from a less performant training run (Exp. D)
+  <figcaption style="margin: 8px 0 8px 0;">
+    <div style="color:#9aa0a6; font-size: 0.9em; margin-bottom: 5px;">
+      <b>Top:</b> From the final fine-tuned model we see more confident movement (Exp. E)<br>
+      <b>Bottom:</b> Jittery + uncertain movement from a less performant training run (Exp. D)
+    </div>
+    <b>Simulation data is a double-edged sword.</b> I explore the <b>"synthetic amnesia"</b> phenomenon in VLA fine-tuning and the <b>Golden Ratio mixing</b> strategy that anchored my policy in real-world physics, lifting success rates from <b>8% to 84%</b>.
   </figcaption>
 </figure>
 <style>
@@ -301,4 +304,4 @@ SmolVLA (450M parameters) is impressively efficient, but it likely lacks the wor
 
 ---
 
-*# Soon: Clean + upload Github repo with my code*
+*# Soon™: Clean + upload Github repo with my code*

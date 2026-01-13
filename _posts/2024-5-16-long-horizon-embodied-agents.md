@@ -5,31 +5,30 @@ categories: [embodied-ai, agents]
 author: Nicolas Basile
 ---
 
-Building on the foundation of **NVIDIA’s Voyager**, this project introduces a self-optimizing agent architecture. By combining **structured hierarchical memory** with **DSPy-driven policy search**, I demonstrate how we can improve success rates by ~20% while significantly reducing the inference cost needed to get there.
-
-<div style="display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;">
+<figure style="display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;">
   <video autoplay controls playsinline muted loop style="width:100%; border-radius:12px;">
     <source src="/videos/base.mp4" type="video/mp4" />
   </video>
-
   <video autoplay controls playsinline muted loop style="width:100%; border-radius:12px;">
     <source src="/videos/cactus.mp4" type="video/mp4" />
   </video>
-
   <video autoplay controls playsinline muted loop style="width:100%; border-radius:12px;">
     <source src="/videos/gold.mp4" type="video/mp4" />
   </video>
-
   <video autoplay controls playsinline muted loop style="width:100%; border-radius:12px;">
     <source src="/videos/pig.mp4" type="video/mp4" />
   </video>
-</div>
+</figure>
+<figcaption style="margin: 8px 0 8px 0;">
+  <div style="color:#9aa0a6; font-size: 0.9em; margin-bottom: 5px;">
+    Credit to <a href="#ref-voyager" rel="noopener noreferrer" style="color:#9aa0a6; text-decoration: underline;">
+      NVIDIA Voyager
+    </a>
+  </div>
+  Building on the foundation of <b>NVIDIA’s Voyager</b>, this project introduces a self-optimizing agent architecture. By combining <b>structured hierarchical memory</b> with <b>DSPy-driven policy search</b>, I demonstrate how we can improve success rates by ~20% while significantly reducing the inference cost needed to get there.
+</figcaption>
 
-<div style="margin-top:8px; color:#9aa0a6; font-size: 0.9em;">
-  Credit to <a href="#ref-voyager" rel="noopener noreferrer" style="color:#9aa0a6; text-decoration: underline;">
-    NVIDIA Voyager
-  </a>
-</div>
+## Introduction
 
 NVIDIA’s Voyager laid the foundation for autonomous curriculum learning and tool‑use, but long-horizon, multi-stage objectives still tend to break down due to **forgetting**, **shallow planning**, and **brittle tool selection**.
 
@@ -45,6 +44,7 @@ On a suite of multi-stage objectives, these changes improved success rates an av
 
 ---
 ## Table of Contents
+- [Introduction](#introduction)
 - [What I built](#what-i-built)
   - [1) Structured memory](#1-structured-memory)
   - [2) Hierarchical planning](#2-hierarchical-planning)
