@@ -10,31 +10,56 @@ author: Nicolas Basile
     <div class="gif-wrapper">
       <img src="/videos/side-1.gif" alt="GIF 1" />
     </div>
-
-  <div class="gif-wrapper">
-    <img src="/videos/top-1.gif" alt="GIF 3" />
+    <div class="gif-wrapper">
+      <img src="/videos/top-1.gif" alt="GIF 3" />
+    </div>
+    <div class="gif-wrapper">
+      <img src="/videos/side-2.gif" alt="GIF 4" />
+    </div>
+    <div class="gif-wrapper">
+      <img src="/videos/top-2.gif" alt="GIF 2" />
+    </div>
   </div>
-
-  <div class="gif-wrapper">
-    <img src="/videos/side-2.gif" alt="GIF 4" />
-  </div>
-
-  <div class="gif-wrapper">
-    <img src="/videos/top-2.gif" alt="GIF 2" />
-  </div>
-  </div>
-
   <figcaption style="margin-top:8px; color:#9aa0a6; font-size: 0.9em;">
     <b>Top:</b> From the final fine-tuned model we see more confident movement (Exp. E)<br>
     <b>Bottom:</b> Jittery + uncertain movement from a less performant training run (Exp. D)
   </figcaption>
-
 </figure>
-
-<!-- <div style="margin-top:8px; color:#9aa0a6; font-size: 0.9em;">
-  <b>Top:</b> From the final fine-tuned model we see more confident movement (Experiment E.)<br>
-  <b>Bottom:</b> Jittery + uncertain movement from a less performant training run (Experiment D.)
-</div> -->
+<style>
+  /* The main grid container */
+  .gif-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    width: 100%;
+  }
+  /* The black container box for each GIF */
+  .gif-wrapper {
+    position: relative;
+    background-color: #151529; /* Black-blue background for padding */
+    border-radius: 12px;       /* Rounded corners move to the container */
+    width: 100%;
+    /* IMPORTANT: This defines the shape of all boxes. 
+       Adjust "4 / 3" to match the aspect ratio of your largest (3rd) GIF 
+       if you know it (e.g., "16 / 9" for wide, "1 / 1" for square).
+    */
+    aspect-ratio: 4 / 3; 
+    /* Flexbox used to center the image inside the black box */
+    display: flex;
+    justify-content: center; /* Centers horizontally */
+    align-items: center;     /* Centers vertically */
+    overflow: hidden;        /* Ensures image corners don't bleed past border-radius */
+  }
+  /* The images themselves */
+  .gif-wrapper img {
+    /* This ensures the image fits within the box without stretching */
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain; 
+    display: block; /* Removes tiny inline spacing gaps */
+    margin: 0 !important; /* Override any global image margins */
+  }
+</style>
 
 ## Introduction
 
@@ -47,43 +72,6 @@ In my previous work with Minecraft agents, actions were discrete. If the VLM out
 I attempted to bridge this gap by flooding a VLA model with massive amounts of synthetic data (both visually augmented and MuJoCo-simulated). It backfired. Instead of generalizing, the robot developed "synthetic amnesia," overwriting real-world physics with simulation artifacts. 
 
 This post documents the counter-intuitive reality of VLA fine-tuning: **too much synthetic data will likely degrade performance unless you explicitly anchor the model in reality**.
-
-<style>
-  /* The main grid container */
-  .gif-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
-  }
-
-  /* The black container box for each GIF */
-  .gif-wrapper {
-    position: relative;
-    background-color: #151529; /* Black-blue background for padding */
-    border-radius: 12px;       /* Rounded corners move to the container */
-    width: 100%;
-    /* IMPORTANT: This defines the shape of all boxes. 
-       Adjust "4 / 3" to match the aspect ratio of your largest (3rd) GIF 
-       if you know it (e.g., "16 / 9" for wide, "1 / 1" for square).
-    */
-    aspect-ratio: 4 / 3; 
-    
-    /* Flexbox used to center the image inside the black box */
-    display: flex;
-    justify-content: center; /* Centers horizontally */
-    align-items: center;     /* Centers vertically */
-    overflow: hidden;        /* Ensures image corners don't bleed past border-radius */
-  }
-
-  /* The images themselves */
-  .gif-wrapper img {
-    /* This ensures the image fits within the box without stretching */
-    max-width: 100%;
-    max-height: 100%;
-    object-fit: contain; 
-    display: block; /* Removes tiny inline spacing gaps */
-  }
-</style>
 
 ---
 
