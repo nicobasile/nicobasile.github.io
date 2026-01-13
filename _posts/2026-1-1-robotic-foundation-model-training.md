@@ -1,9 +1,19 @@
 ---
 layout: post
-title: Robotic Amnesia - Anchoring VLA Physics with Golden Ratios
+title: Robotic Foundation Model Training - Anchoring Physics with Golden Ratios
 categories: [embodied-ai, robotics]
 author: Nicolas Basile
 ---
+
+In my previous work with Minecraft agents, actions were discrete. If the VLM output `move_to_coords(X, Y, Z)`, the game engine **guaranteed** the physics. The agent never had to calculate torque or friction. However, that "code-as-action" paradigm exposes two critical bottlenecks when applied to real-world robotics:
+
+1. **Autoregressive Latency:** Generating tokens is too slow for dynamic control loops (e.g., <10Hz).
+
+2. **Action Fidelity:** Discrete text commands (e.g., "move forward") do not cleanly generalize to continuous, high-dimensional joint torques.
+
+I attempted to bridge this gap by flooding a VLA model with massive amounts of synthetic data (both visually augmented and MuJoCo-simulated). It backfired. Instead of generalizing, the robot developed "synthetic amnesia," overwriting real-world physics with simulation artifacts. 
+
+This post documents the counter-intuitive reality of VLA fine-tuning: **too much synthetic data will likely degrade performance unless you explicitly anchor the model in reality**.
 
 <style>
   /* The main grid container */
@@ -64,18 +74,6 @@ author: Nicolas Basile
   <b>Top:</b> From the final fine-tuned model we see more confident movement (Experiment D.)<br>
   <b>Bottom:</b> Jittery + uncertain movement from a less performant training run (Experiment C.)
 </div>
-
-# Introduction
-
-In my previous work with Minecraft agents, actions were discrete. If the VLM output `move_to_coords(X, Y, Z)`, the game engine **guaranteed** the physics. The agent never had to calculate torque or friction. However, that "code-as-action" paradigm exposes two critical bottlenecks when applied to real-world robotics:
-
-1. **Autoregressive Latency:** Generating tokens is too slow for dynamic control loops (e.g., <10Hz).
-
-2. **Action Fidelity:** Discrete text commands (e.g., "move forward") do not cleanly generalize to continuous, high-dimensional joint torques.
-
-I attempted to bridge this gap by flooding a VLA model with massive amounts of synthetic data (both visually augmented and MuJoCo-simulated). It backfired. Instead of generalizing, the robot developed "synthetic amnesia," overwriting real-world physics with simulation artifacts. 
-
-This post documents the counter-intuitive reality of VLA fine-tuning: **too much synthetic data will likely degrade performance unless you explicitly anchor the model in reality**.
 
 ---
 
@@ -176,7 +174,7 @@ My final dataset consisted of three distinct buckets:
         - Applies background replacements while maintaining foreground elements
     - **Kornia visual augments** <sup>[[3]](#ref-kornia)</sup> for color jittering, contrast adjustments, and cropping, applied consistently across a trajectory
     - <u>Role:</u> Forces the vision encoder to ignore framing nuances while preserving the exact kinematic signature of the real robot.
-- **Simulation data (N=1000)** generated in MuJoCo using the exact URDF of the SO-101 arm and I matched the visual assets (block color, table texture) to the physical lab setup (Digital Twin)
+- **Simulation data (N=1000)** generated in MuJoCo using the SO-101 arm URDF and I matched the visual assets (block color, table texture) to the physical lab setup (Digital Twin)
   - <u>Role:</u> Provides the "volume" required for the flow matching head to learn a stable vector field.
 
 <div style="display: flex; flex-direction: column; align-items: center; width: 100%;">
