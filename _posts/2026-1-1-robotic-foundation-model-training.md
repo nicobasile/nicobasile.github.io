@@ -194,10 +194,9 @@ Following established best practices for VLA fine-tuning, the real data collecti
 
 I expected 'more augmented + simulation data = better', but early runs showed the opposite: naive sampling from a 96% synthetic pool made the policy brittle. 
 
-""" TBD
 ### The Experimental Loop
 
-*   **Hypothesis:** Oversampling real data prevents drift, but excessive synthetic volume without anchoring causes "robotic amnesia" of real-world physics.
+*   **Hypothesis:** Oversampling real data prevents drift, but excessive synthetic volume without anchoring causes catastrophic forgetting of real-world physics.
 *   **Test:** Six variants (A-F) testing the transition from pure real data to heavy synthetic mixing.
 *   **Results:**
     *   **Exp A (Pure Real):** 8% success (Filament collapse; zero generalization).
@@ -207,7 +206,6 @@ I expected 'more augmented + simulation data = better', but early runs showed th
     *   **Exp E (Weak Anchoring):** 72% success (High visual robustness, but physics drift).
     *   **Exp F (Rigid Generalization):** 52% success (Stable physics, but visual fragility).
 *   **Conclusion:** Strategy C works mechanistically by forcing the gradient updates to respect the kinematic ground truth of the real arm, even when the visual input is heavily distorted.
-"""
 
 ### Ablation: Real-Augmented-Simulation batch composition
 
