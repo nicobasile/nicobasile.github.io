@@ -72,7 +72,7 @@ In my previous work with Minecraft agents, actions were discrete. If the VLM out
 
 2. **Action Fidelity:** Discrete text commands (e.g., "move forward") do not cleanly generalize to continuous, high-dimensional joint torques.
 
-I attempted to bridge this gap by flooding a VLA model with massive amounts of synthetic data (both visually augmented and MuJoCo-simulated). It backfired. Instead of generalizing, the robot developed "synthetic amnesia," overwriting real-world physics with simulation artifacts. 
+I attempted to bridge this gap by flooding a VLA model with massive amounts of synthetic data (both visually augmented and simulation-generated). It backfired. Instead of generalizing, the robot developed "synthetic amnesia," overwriting real-world physics with simulation artifacts. 
 
 This post documents the counter-intuitive reality of VLA fine-tuning: **too much synthetic data will likely degrade performance unless you explicitly anchor the model in reality**.
 
@@ -175,8 +175,6 @@ My final dataset consisted of three distinct buckets:
         - Applies background replacements while maintaining foreground elements
     - **Kornia visual augments** <sup>[[3]](#ref-kornia)</sup> for color jittering, contrast adjustments, and cropping, applied consistently across a trajectory
     - <u>Role:</u> Forces the vision encoder to ignore framing nuances while preserving the exact kinematic signature of the real robot.
-- **Simulation data (N=1000)** generated in MuJoCo using the SO-101 arm URDF and I matched the visual assets (block color, table texture) to the physical lab setup (Digital Twin)
-  - <u>Role:</u> Provides the "volume" required for the flow matching head to learn a stable vector field.
 
 <div style="display: flex; flex-direction: column; align-items: center; width: 100%;">
   <img src="/videos/augmented_synthetic_data.gif" style="max-width: 100%; border-radius: 12px; margin-top:8px" alt="Augmented Synthetic Data" />
@@ -188,24 +186,19 @@ My final dataset consisted of three distinct buckets:
   </div>
 </div>
 
+- **Simulation data (N=1000)** generated primarily in ManiSkill <sup>[[15]](#ref-maniskill)</sup> (SAPIEN <sup>[[16]](#ref-sapien)</sup>) with a small fraction from MuJoCo. I matched the visual assets (block color, table texture) to the physical lab setup (Digital Twin).
+  - <u>Role:</u> Provides the "volume" required for the flow matching head to learn a stable vector field.
+
 Following established best practices for VLA fine-tuning, the real data collection focused on diversity rather than sheer volume. I collected **N=50** high-quality "anchor" episodes, ensuring varied robot joint configurations by starting and ending trajectories in five distinct zones around the workspace.
+
+> **A Note on Simulation Engines:** I initially invested significant time porting the SO-100 to MuJoCo (via gym-so100-c), however, I ultimately pivoted to ManiSkill (SAPIEN) for the bulk of data generation. The deciding factor was the work required—generating synthetic data at scale in MuJoCo would have required completing my IK solver mentioned earlier as well as a state machine. ManiSkill provided these scripted experts out-of-the-box with GPU parallelization, allowing me to generate 10k trajectories in minutes rather than days.
 
 ## Training: The Golden Ratio
 
-I expected 'more augmented + simulation data = better', but early runs showed the opposite: naive sampling from a 96% synthetic pool made the policy brittle. 
-
-### The Experimental Loop
+I expected "more augmented + simulation data = better", but early runs showed the opposite: naive sampling from a 96% synthetic pool made the policy brittle. 
 
 *   **Hypothesis:** Oversampling real data prevents drift, but excessive synthetic volume without anchoring causes catastrophic forgetting of real-world physics.
-*   **Test:** Six variants (A-F) testing the transition from pure real data to heavy synthetic mixing.
-*   **Results:**
-    *   **Exp A (Pure Real):** 8% success (Filament collapse; zero generalization).
-    *   **Exp B (Naive Mix):** 36% success (Synthetic amnesia; model "forgets" real-world friction).
-    *   **Exp C (Tri-Partitioned):** 64% success (Stable physics, but brittle to visual shifts).
-    *   **Exp D (Golden Ratio):** 84% success (Optimal; anchors physics while leveraging sim volume).
-    *   **Exp E (Weak Anchoring):** 72% success (High visual robustness, but physics drift).
-    *   **Exp F (Rigid Generalization):** 52% success (Stable physics, but visual fragility).
-*   **Conclusion:** Strategy C works mechanistically by forcing the gradient updates to respect the kinematic ground truth of the real arm, even when the visual input is heavily distorted.
+*   **Test:** Six variants testing the transition from pure real data to heavy synthetic mixing.
 
 ### Ablation: Real-Augmented-Simulation batch composition
 
@@ -218,19 +211,79 @@ I conducted an ablation study over several mixing strategies to find the inflect
 - Baseline (zero-shot SmolVLA): **~5%** success due to domain shift in my custom setup.
 - Fine-tuned variants:
 
-| <span style="font-size: 0.8em;">Experiment</span> | <span style="font-size: 0.8em;">Data Mix (Real : Aug : Sim)</span> | <span style="font-size: 0.8em;">Batch Sampling Strategy</span> | <span style="font-size: 0.8em;">Success Rate</span> | <span style="font-size: 0.8em;">Diagnosis</span> |
-|---|---|---|---|---|
-| <span style="font-size: 0.8em;">Exp. A</span> | <span style="font-size: 0.8em;">50 : 0 : 0</span> | <span style="font-size: 0.8em;">**Pure Real** - Only trained on the 50 teleop demos.</span> | <span style="font-size: 0.8em;">8%</span> <br><span style="font-size:0.8em; color:grey;">(CI: 2% - 25%)</span> | <span style="font-size: 0.8em;">**Filament Collapse:** The flow matching vector field was undefined just millimeters off the demos.</span> |
-| <span style="font-size: 0.8em;">Exp. B</span> | <span style="font-size: 0.8em;">50 : 150 : 1000</span> | <span style="font-size: 0.8em;">**Naive Mixing** - Sampled uniformly from the total pool</span> | <span style="font-size: 0.8em;">36%</span><br><span style="font-size:0.8em; color:grey;">(CI: 20% - 55%)</span> | <span style="font-size: 0.8em;">**Synthetic Amnesia:** The model learned "MuJoCo physics" (perfect friction), causing it to slip and fail in the real world.</span> |
-| <span style="font-size: 0.8em;">Exp. C</span> | <span style="font-size: 0.8em;">50 : 150 : 1000</span> | <span style="font-size: 0.8em;">**Forced Ratio:** 35% Real / 15% Aug / 50% Sim</span> | <span style="font-size: 0.8em;">52%</span><br><span style="font-size:0.8em; color:grey;">(CI: 33% - 70%)</span> | <span style="font-size: 0.8em;">**Rigid Generalization:** Stable physics but failed to generalize to visual noise, similar to a robust Exp. A.</span> |
-| <span style="font-size: 0.8em;">Exp. D</span> | <span style="font-size: 0.8em;">50 : 150 : 1000</span> | <span style="font-size: 0.8em;">**Forced Ratio:** 25% Real / 25% Aug / 50% Sim</span> | <span style="font-size: 0.8em;">64%</span><br><span style="font-size:0.8em; color:grey;">(CI: 45% - 80%)</span> | <span style="font-size: 0.8em;">**Visual Overfitting:** Physics were stable, but the model became brittle to lighting changes. The raw pixel data was over-represented.</span> |
-| <span style="font-size: 0.8em;">**Exp. E (Optimal)**</span> | <span style="font-size: 0.8em;">50 : 150 : 1000</span> | <span style="font-size: 0.8em;">**Forced Ratio: 15% Real / 35% Aug / 50% Sim**</span> | <span style="font-size: 0.8em;"><b>84%</b></span><br><span style="font-size:0.8em; color:grey;">(CI: 65% - 94%)</span> | <span style="font-size: 0.8em;">**Golden Ratio:** Real data is heavily oversampled to anchor the physics, while sim provides topological support.</span> |
-| <span style="font-size: 0.8em;">Exp. F</span> | <span style="font-size: 0.8em;">50 : 150 : 1000</span> | <span style="font-size: 0.8em;">**Forced Ratio:** 10% Real / 40% Aug / 50% Sim</span> | <span style="font-size: 0.8em;">72%</span><br><span style="font-size:0.8em; color:grey;">(CI: 52% - 86%)</span> | <span style="font-size: 0.8em;">**Weak Anchoring:** High visual robustness, but the physics anchor was too weak for complex contact phases.</span> |
+<div style="font-size: 0.9em; overflow-x: auto;">
+  <table style="width: 100%; border-collapse: collapse;">
+    <colgroup>
+      <col style="width: 7%">
+      <col style="width: 20%">
+      <col style="width: 23%">
+      <col style="width: 50%">
+    </colgroup>
+    <thead>
+      <tr style="border-bottom: 2px solid #ddd; text-align: left;">
+        <th style="padding: 8px;">Experiment</th>
+        <th style="padding: 8px;">Batch Sampling Strategy</th>
+        <th style="padding: 8px; text-align: center;">Success Rate</th>
+        <th style="padding: 8px;">Diagnosis</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr style="border-bottom: 1px solid #eee;">
+        <td style="padding: 8px;">Exp. A</td>
+        <td style="padding: 8px;"><b>Pure Real</b> - Only trained on the 50 teleop demos.</td>
+        <td style="padding: 8px; text-align: center;">8% <br><span style="color:#666; font-size:0.85em;">(CI: 2% - 25%)</span></td>
+        <td style="padding: 8px;"><b>Filament Collapse:</b> The flow matching vector field was undefined just millimeters off the demos.</td>
+      </tr>
+      <tr style="border-bottom: 1px solid #eee;">
+        <td style="padding: 8px;">Exp. B</td>
+        <td style="padding: 8px;"><b>Naive Mixing</b> - Sampled uniformly from the total pool.</td>
+        <td style="padding: 8px; text-align: center;">36% <br><span style="color:#666; font-size:0.85em;">(CI: 20% - 55%)</span></td>
+        <td style="padding: 8px;"><b>Synthetic Amnesia:</b> The model learned "MuJoCo physics" (perfect friction), causing it to slip and fail in the real world.</td>
+      </tr>
+      <tr style="border-bottom: 1px solid #eee;">
+        <td style="padding: 8px;">Exp. C</td>
+        <td style="padding: 8px;"><b>Forced Ratio:</b> 35% Real / 15% Aug / 50% Sim</td>
+        <td style="padding: 8px; text-align: center;">52% <br><span style="color:#666; font-size:0.85em;">(CI: 33% - 70%)</span></td>
+        <td style="padding: 8px;"><b>Rigid Generalization:</b> Stable physics but failed to generalize to visual noise.</td>
+      </tr>
+      <tr style="border-bottom: 1px solid #eee;">
+        <td style="padding: 8px;">Exp. D</td>
+        <td style="padding: 8px;"><b>Forced Ratio:</b> 25% Real / 25% Aug / 50% Sim</td>
+        <td style="padding: 8px; text-align: center;">64% <br><span style="color:#666; font-size:0.85em;">(CI: 45% - 80%)</span></td>
+        <td style="padding: 8px;"><b>Visual Overfitting:</b> Physics stable, but brittle to lighting changes.</td>
+      </tr>
+      <tr style="border-bottom: 1px solid #eee; background-color: #f0f7ff;">
+        <td style="padding: 8px;"><b>Exp. E (Optimal)</b></td>
+        <td style="padding: 8px;"><b>Forced Ratio:</b> 15% Real / 35% Aug / 50% Sim</td>
+        <td style="padding: 8px; text-align: center;"><b>84%</b> <br><span style="color:#666; font-size:0.85em;">(CI: 65% - 94%)</span></td>
+        <td style="padding: 8px;"><b>Golden Ratio:</b> Real data heavily oversampled to anchor physics; sim provides topological support.</td>
+      </tr>
+      <tr style="border-bottom: 1px solid #eee;">
+        <td style="padding: 8px;">Exp. F</td>
+        <td style="padding: 8px;"><b>Forced Ratio:</b> 10% Real / 40% Aug / 50% Sim</td>
+        <td style="padding: 8px; text-align: center;">72% <br><span style="color:#666; font-size:0.85em;">(CI: 52% - 86%)</span></td>
+        <td style="padding: 8px;"><b>Weak Anchoring:</b> High visual robustness, but physics anchor too weak for complex contact.</td>
+      </tr>
+    </tbody>
+  </table>
+  <div style="margin-top:8px; color:#666; font-size: 0.9em; line-height: 1.4;">
+      <b>Table 1:</b> Impact of Batch Composition on Success Rate Evaluated on N=25 trials per model. 95% Confidence Intervals (Wilson Score). All experiments draw from the same data pool: <b>50 real, 150 augmented, 1000 simulation</b> trajectories.
+  </div>
+</div>
+
+<!-- | <span style="font-size: 0.8em;">Experiment</span> | <span style="font-size: 0.8em;">Batch Sampling Strategy</span> | <span style="font-size: 0.8em;">Success Rate</span> | <span style="font-size: 0.8em;">Diagnosis</span> |
+|---|---|---|---|
+| <span style="font-size: 0.8em;">Exp. A</span> | <span style="font-size: 0.8em;">**Pure Real** - Only trained on the 50 teleop demos.</span> | <span style="font-size: 0.8em;">8%</span> <br><span style="font-size:0.8em; color:grey;">(CI: 2% - 25%)</span> | <span style="font-size: 0.8em;">**Filament Collapse:** The flow matching vector field was undefined just millimeters off the demos.</span> |
+| <span style="font-size: 0.8em;">Exp. B</span> | <span style="font-size: 0.8em;">**Naive Mixing** - Sampled uniformly from the total pool.</span> | <span style="font-size: 0.8em;">36%</span><br><span style="font-size:0.8em; color:grey;">(CI: 20% - 55%)</span> | <span style="font-size: 0.8em;">**Synthetic Amnesia:** The model learned "MuJoCo physics" (perfect friction), causing it to slip and fail in the real world.</span> |
+| <span style="font-size: 0.8em;">Exp. C</span> | <span style="font-size: 0.8em;">**Forced Ratio:** 35% Real / 15% Aug / 50% Sim</span> | <span style="font-size: 0.8em;">52%</span><br><span style="font-size:0.8em; color:grey;">(CI: 33% - 70%)</span> | <span style="font-size: 0.8em;">**Rigid Generalization:** Stable physics but failed to generalize to visual noise.</span> |
+| <span style="font-size: 0.8em;">Exp. D</span> | <span style="font-size: 0.8em;">**Forced Ratio:** 25% Real / 25% Aug / 50% Sim</span> | <span style="font-size: 0.8em;">64%</span><br><span style="font-size:0.8em; color:grey;">(CI: 45% - 80%)</span> | <span style="font-size: 0.8em;">**Visual Overfitting:** Physics stable, but brittle to lighting changes.</span> |
+| <span style="font-size: 0.8em;">**Exp. E (Optimal)**</span> | <span style="font-size: 0.8em;">**Forced Ratio:** 15% Real / 35% Aug / 50% Sim</span> | <span style="font-size: 0.8em;"><b>84%</b></span><br><span style="font-size:0.8em; color:grey;">(CI: 65% - 94%)</span> | <span style="font-size: 0.8em;">**Golden Ratio:** Real data heavily oversampled to anchor physics; sim provides topological support.</span> |
+| <span style="font-size: 0.8em;">Exp. F</span> | <span style="font-size: 0.8em;">**Forced Ratio:** 10% Real / 40% Aug / 50% Sim</span> | <span style="font-size: 0.8em;">72%</span><br><span style="font-size:0.8em; color:grey;">(CI: 52% - 86%)</span> | <span style="font-size: 0.8em;">**Weak Anchoring:** High visual robustness, but physics anchor too weak for complex contact.</span> |
 
 
 <div style="margin-top:8px; color:#9aa0a6; font-size: 0.9em;">
-  <b>Table 1:</b> Impact of Batch Composition on Success Rate Evaluated on N=25 trials per model. 95% Confidence Intervals (Wilson Score).
-</div>
+  <b>Table 1:</b> Impact of Batch Composition on Success Rate Evaluated on N=25 trials per model. 95% Confidence Intervals (Wilson Score). All experiments draw from the same data pool: <b>50 real, 150 augmented, 1000 simulation</b> trajectories.
+</div> -->
 
 <div style="display: flex; flex-direction: column; align-items: center; width: 100%;">
   <img src="/images/result_chart.png" style="max-width: 100%; border-radius: 12px; margin-top:8px" alt="Result Chart" />
@@ -243,7 +296,7 @@ Training was performed for 20,000 steps (batch size 64) using a rented NVIDIA A1
 ### Why the 15 / 35 / 50 Split Works
 Although the underlying dataset is 96% synthetic, the tri-partitioned strategy ensures that **50% of every gradient update** is derived from real-world kinematics (Real + Augmented). This prevents the model from overwriting the delicate friction and contact dynamics of the real arm with simulation artifacts.
 
-By combining diverse teleoperation data, visual augmentations, and MuJoCo simulation data via Weighted Stratified Sampling <sup>[[14]](#ref-rt1)</sup>, I fine-tuned SmolVLA to execute smooth, confident motions. This approach successfully eliminated the jitter seen in earlier runs and enabled the model to generalize to new object locations.
+By combining diverse teleoperation data, visual augmentations, and simulation data via Weighted Stratified Sampling <sup>[[14]](#ref-rt1)</sup>, I fine-tuned SmolVLA to execute smooth, confident motions. This approach successfully eliminated the jitter seen in earlier runs and enabled the model to generalize to new object locations.
 
 ## Future Research Directions
 
@@ -299,6 +352,9 @@ SmolVLA (450M parameters) is impressively efficient, but it likely lacks the wor
 
 14. <a id="ref-rt1"></a> **RT-1** — Brohan et al., RT-1: Robotics Transformer for Real-World Control at Scale. https://arxiv.org/abs/2206.02077
 
+15. <a id="ref-maniskill"></a> **ManiSkill** — Gu et al., ManiSkill: GPU Parallelized Robot Manipulation Benchmark. https://github.com/haosulab/ManiSkill
+
+16. <a id="ref-sapien"></a> **SAPIEN** — Xiang et al., SAPIEN: A SimulAted Part-based Interactive ENvironment. https://sapien.ucsd.edu/
 
 ---
 
