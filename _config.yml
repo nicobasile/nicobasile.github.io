@@ -5,6 +5,12 @@
 # Name of your site (displayed in the header)
 name: Nico Basile
 
+# Used by jekyll-seo-tag and jekyll-feed, which read site.title rather than site.name
+title: Nico Basile
+
+lang: en
+locale: en_US
+
 # Name of the author
 author: Nicolas Basile
 
@@ -13,7 +19,6 @@ description: A collection of experiments
 
 # URL of your avatar or profile pic (you could use your GitHub profile pic)
 avatar: /images/robotic_gripper_neural_net_no_bg.png
-
 #
 # Flags below are optional
 #
@@ -35,20 +40,24 @@ footer-links:
   playconsole:
   mastodon: # <your-mastodon-instance>/@<your-user-name> eg. fosstodon.org/@username
 
-# Enter your Disqus shortname (not your username) to enable commenting on posts
-# You can find your shortname on the Settings page of your Disqus account
-disqus: 
-
-# Enter your Google Analytics web tracking code (e.g. UA-2110908-2) to activate tracking
-google_analytics:
-
-# For newer "GA4" analytics, use the following instead of the "UA" entry above
-#google_analytics_ga4: G-GABC1DEFG
+# Google Analytics 4 measurement ID, e.g. G-GABC1DEFG
+#google_analytics_ga4:
 
 # Your website URL (e.g. http://amitmerchant1990.github.io or http://www.amitmerchant.com)
 # Used for Sitemap.xml and your RSS feed
-url:
+url: https://nicobasile.github.io
 enforce_ssl:
+
+twitter:
+  username: nicobasile_
+  card: summary_large_image
+
+social:
+  name: Nicolas Basile
+  links:
+    - https://github.com/nicobasile
+    - https://www.linkedin.com/in/nicobasile
+    - https://twitter.com/nicobasile_
 
 # If you're hosting your site at a Project repository on GitHub pages
 # (http://yourusername.github.io/repository-name)
@@ -87,6 +96,14 @@ plugins:
   - jekyll-paginate
 
 include: ['_pages']
+
+# Gives every page an `image` so jekyll-seo-tag emits og:image, twitter:image,
+# and a summary_large_image card. Override per post with `image:` in front matter.
+defaults:
+  - scope:
+      path: ""
+    values:
+      image: /images/robotic_gripper_neural_net_no_bg.png
 
 paginate: 6
 paginate_path: /page:num/

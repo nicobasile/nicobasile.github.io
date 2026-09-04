@@ -10,15 +10,16 @@
  * 2. Blog Post Card Hover: Pure rectangular gravity, solid box blocking & perimeter orbit.
  * 3. Ambient Dust & Idle: Fluid wake effects when the dragon glides past stars; graceful release
  *    and fast reset to neutral Brownian drift when idle.
- * 4. Constellation Filaments: Proximity linkages web between dragon coils and background stars.
+ * 4. Ambient modes: Web (Brownian drift + constellation links) or Flow (shared curl field).
+ * 5. Reading pages (article.post/page.detailed): dust and the dragon may travel
+ *    under the article card. The dragon is not drawn while the cursor is over it.
  */
 (function () {
   'use strict';
 
   // Check user preference
   const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const storedSetting = localStorage.getItem('particles_enabled');
-  let enabled = storedSetting !== null ? storedSetting === 'true' : !prefersReducedMotion;
+  let enabled = !prefersReducedMotion;
 
   const canvas = document.getElementById('particle-canvas');
   if (!canvas) return;
@@ -33,6 +34,33 @@
   const PALETTE = ['#38bdf8', '#818cf8', '#c084fc', '#f472b6', '#60a5fa'];
   const TWO_PI = Math.PI * 2;
 
+  // Ambient field mode: 'web' = Brownian + constellation links (default),
+  // 'flow' = shared curl so the dust streams in slow sheets.
+  const MODE_KEY = 'particle_ambient_mode';
+  let ambientMode = localStorage.getItem(MODE_KEY) === 'flow' ? 'flow' : 'web';
+
+  function flowAt(x, y, t) {
+    const s = 0.0024;
+    const a = Math.sin(x * s + t * 0.14) + Math.cos(y * s * 1.25 - t * 0.11);
+    const b = Math.cos(x * s * 0.85 - t * 0.09) - Math.sin(y * s + t * 0.12);
+    return { x: b * 0.42, y: -a * 0.42 };
+  }
+
+  function syncModeSwitch() {
+    const btn = document.getElementById('particle-mode');
+    if (!btn) return;
+    btn.setAttribute('aria-checked', ambientMode === 'flow' ? 'true' : 'false');
+    btn.querySelectorAll('.particle-mode-opt').forEach((el) => {
+      el.classList.toggle('is-active', el.getAttribute('data-mode') === ambientMode);
+    });
+  }
+
+  function setAmbientMode(mode) {
+    ambientMode = mode === 'flow' ? 'flow' : 'web';
+    localStorage.setItem(MODE_KEY, ambientMode);
+    syncModeSwitch();
+  }
+
   // Particle configuration
   const config = {
     count: window.innerWidth < 640 ? 60 : 120,
@@ -41,11 +69,36 @@
     ambientSpeed: 0.45
   };
 
-  // State for active card and header
+  // State for active card, header, and reading column
   let activeCard = null;
   let activeCardRect = null;
   let isHeaderHovered = false;
   let cardRectDirty = false;
+
+  // Posts / about: keep dust out of the article and only let the dragon hunt
+  // in the gutters (cursor not over <article class="post|page detailed">).
+  const readingEl = document.querySelector('article.post.detailed, article.page.detailed');
+  const isReadingPage = !!readingEl;
+  let articleRect = null;
+  let articleRectDirty = true;
+
+  function refreshArticleRect() {
+    if (!readingEl) return;
+    if (!articleRect || articleRectDirty) {
+      articleRect = readingEl.getBoundingClientRect();
+      articleRectDirty = false;
+    }
+  }
+
+  function isOverArticle() {
+    if (!isReadingPage || !articleRect) return false;
+    return mouse.x >= articleRect.left && mouse.x <= articleRect.right &&
+      mouse.y >= articleRect.top && mouse.y <= articleRect.bottom;
+  }
+
+  function dragonCanHunt() {
+    return mouse.active && !activeCard && !isHeaderHovered && !isOverArticle();
+  }
 
   // Mouse & Cosmic Dragon Engine
   const mouse = {
@@ -54,6 +107,30 @@
     active: false,
     hasMoved: false
   };
+
+  function recordHeadHistory() {
+    const last = dragon.history[0];
+    if (!last || Math.hypot(dragon.head.x - last.x, dragon.head.y - last.y) > 1.6) {
+      dragon.history.unshift({ x: dragon.head.x, y: dragon.head.y });
+      const maxHistorySamples = (dragonLength + 2) * 12;
+      if (dragon.history.length > maxHistorySamples) {
+        dragon.history.length = maxHistorySamples;
+      }
+    }
+  }
+
+  function steerHead(desiredVx, desiredVy, steerForce, maxHeadSpeed) {
+    dragon.head.vx += (desiredVx - dragon.head.vx) * steerForce;
+    dragon.head.vy += (desiredVy - dragon.head.vy) * steerForce;
+    const headSpeed = Math.hypot(dragon.head.vx, dragon.head.vy);
+    if (headSpeed > maxHeadSpeed) {
+      dragon.head.vx = (dragon.head.vx / headSpeed) * maxHeadSpeed;
+      dragon.head.vy = (dragon.head.vy / headSpeed) * maxHeadSpeed;
+    }
+    dragon.head.x += dragon.head.vx;
+    dragon.head.y += dragon.head.vy;
+    recordHeadHistory();
+  }
 
   let dragonLength = window.innerWidth < 640 ? 14 : 20;
 
@@ -124,9 +201,6 @@
     y: 0,
     active: false
   };
-
-  // Shockwave array for clicks
-  const shockwaves = [];
 
   const DRAGON = {
     headColor: '#c084fc',
@@ -273,22 +347,7 @@
         this.vy += (dy / dist) * pull;
       }
 
-      // 3. Shockwave impulses from user clicks
-      for (let i = 0; i < shockwaves.length; i++) {
-        const wave = shockwaves[i];
-        const dx = this.x - wave.x;
-        const dy = this.y - wave.y;
-        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-        const diff = dist - wave.currentRadius;
-
-        if (Math.abs(diff) < 35) {
-          const pushForce = (1 - wave.currentRadius / wave.maxRadius) * 2.2;
-          this.vx += (dx / dist) * pushForce;
-          this.vy += (dy / dist) * pushForce;
-        }
-      }
-
-      // 4. Speed limiter & damping per mode
+      // 3. Speed limiter & damping per mode
       if (activeCard) {
         // Blog post card hover - keep exact current good speed and fluid damping
         const maxSpeed = 3.4;
@@ -316,6 +375,13 @@
         // Pure velocity decay for dragon members so ambient drift doesn't bias the trailing vertebrae
         this.vx = this.vx * effDamping + this.baseVx * 0.04 * (1 - w);
         this.vy = this.vy * effDamping + this.baseVy * 0.04 * (1 - w);
+      } else if (ambientMode === 'flow') {
+        const f = flowAt(this.x, this.y, dragon.time);
+        const mix = 0.06;
+        this.baseVx += (f.x * this.orbitSpeedFactor - this.baseVx) * mix;
+        this.baseVy += (f.y * this.orbitSpeedFactor - this.baseVy) * mix;
+        this.vx += (this.baseVx - this.vx) * 0.08;
+        this.vy += (this.baseVy - this.vy) * 0.08;
       } else {
         // Neutral chaos state / Ambient stars: Rapidly reset velocity back to ambient Brownian drift
         const resetSpeed = 0.12;
@@ -445,12 +511,11 @@
       ctx.restore();
     }
 
-    // 2. Pairwise proximity constellation lines.
-    //    The particle list is kept sorted by x, so the inner loop can bail as
-    //    soon as the x gap alone exceeds the link radius. That turns the O(n^2)
-    //    sweep into roughly n * (neighbours within one 95px column).
-    //    Segments are then bucketed by opacity and each bucket is stroked as a
-    //    single path, so a few hundred link draws collapse into LINK_BUCKETS.
+    // 2. Pairwise proximity constellation lines (Web mode only).
+    //    Flow mode skips the web so the stream reads as sheets, not a mesh.
+    //    Card-hover anti-clump still needs the pair sweep.
+    if (ambientMode !== 'web' && !activeCard) return;
+
     const maxDist = config.maxDistance;
     const maxDistSq = maxDist * maxDist;
     const len = particles.length;
@@ -485,10 +550,12 @@
 
           // Links touching the dragon are dimmed hard, otherwise the ambient
           // web smears across the silhouette and hides its shape.
-          const onDragon = p1.isDragonMember || p2.isDragonMember;
-          const alpha = (1 - dist / maxDist) * (onDragon ? 0.05 : 0.20);
-          const bucket = linkBuckets[Math.min(LINK_BUCKETS - 1, (alpha / 0.20 * LINK_BUCKETS) | 0)];
-          bucket.push(p1.x, p1.y, p2.x, p2.y);
+          if (ambientMode === 'web') {
+            const onDragon = p1.isDragonMember || p2.isDragonMember;
+            const alpha = (1 - dist / maxDist) * (onDragon ? 0.05 : 0.20);
+            const bucket = linkBuckets[Math.min(LINK_BUCKETS - 1, (alpha / 0.20 * LINK_BUCKETS) | 0)];
+            bucket.push(p1.x, p1.y, p2.x, p2.y);
+          }
         }
       }
     }
@@ -885,20 +952,10 @@
     ctx.globalAlpha = 1;
   }
 
-  function updateShockwaves() {
-    for (let i = shockwaves.length - 1; i >= 0; i--) {
-      const wave = shockwaves[i];
-      wave.currentRadius += 7;
-      if (wave.currentRadius >= wave.maxRadius) {
-        shockwaves.splice(i, 1);
-      }
-    }
-  }
-
   function updateDragonHead() {
     dragon.time += 0.016;
 
-    if (mouse.active && !activeCard && !isHeaderHovered) {
+    if (dragonCanHunt()) {
       dragon.activeWeight = Math.min(1, dragon.activeWeight + 0.05);
     } else {
       dragon.activeWeight = Math.max(0, dragon.activeWeight - 0.035);
@@ -906,10 +963,11 @@
 
     if (dragon.activeWeight <= 0.001) return;
 
-    // ---- Idle detection: circle -> infinity -> curl up and sleep ----
     const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+
+    // ---- Idle detection: circle -> infinity -> curl up and sleep ----
     const restMs = now - lastMoveAt;
-    const awake = mouse.active && !activeCard && !isHeaderHovered;
+    const awake = dragonCanHunt();
     const wantSleep = restMs > SLEEP_DELAY_MS && awake;
     const wantIdle = restMs > IDLE_DELAY_MS && awake && !wantSleep;
 
@@ -1036,30 +1094,8 @@
 
     // Steering acceleration with natural momentum (gentle, unhurried)
     const steerForce = 0.045 + 0.03 * dragon.idleWeight;
-    dragon.head.vx += (desiredVx - dragon.head.vx) * steerForce;
-    dragon.head.vy += (desiredVy - dragon.head.vy) * steerForce;
-
-    // Speed limiter on head: one steady, graceful cruise speed
     const maxHeadSpeed = (2.4 + 0.7 * dragon.idleWeight) * (1 - 0.6 * dragon.sleepWeight);
-    const headSpeed = Math.hypot(dragon.head.vx, dragon.head.vy);
-    if (headSpeed > maxHeadSpeed) {
-      dragon.head.vx = (dragon.head.vx / headSpeed) * maxHeadSpeed;
-      dragon.head.vy = (dragon.head.vy / headSpeed) * maxHeadSpeed;
-    }
-
-    dragon.head.x += dragon.head.vx;
-    dragon.head.y += dragon.head.vy;
-
-    // Record the trail the body follows. Gated by distance, not by frame, so the
-    // path still spans the whole body when the dragon slows down to a crawl.
-    const last = dragon.history[0];
-    if (!last || Math.hypot(dragon.head.x - last.x, dragon.head.y - last.y) > 1.6) {
-      dragon.history.unshift({ x: dragon.head.x, y: dragon.head.y });
-      const maxHistorySamples = (dragonLength + 2) * 12;
-      if (dragon.history.length > maxHistorySamples) {
-        dragon.history.length = maxHistorySamples;
-      }
-    }
+    steerHead(desiredVx, desiredVy, steerForce, maxHeadSpeed);
   }
 
   function updateDragonMembers() {
@@ -1076,7 +1112,7 @@
 
     const targetCount = dragonLength;
 
-    if (mouse.active && !activeCard && !isHeaderHovered) {
+    if (dragonCanHunt()) {
       // 1. Initial seed: recruit the particle closest to the cursor position
       if (dragon.members.length === 0 && particles.length > 0) {
         let nearest = null;
@@ -1268,8 +1304,8 @@
   function loop() {
     if (!enabled) return;
 
-    // Card rect is only re-measured when it can actually have moved. Reading it
-    // every frame forces a layout flush on each tick.
+    // Card / article rects are only re-measured when they can actually have
+    // moved. Reading them every frame forces a layout flush on each tick.
     if (activeCard) {
       if (!activeCardRect || cardRectDirty) {
         activeCardRect = activeCard.getBoundingClientRect();
@@ -1278,6 +1314,7 @@
     } else {
       activeCardRect = null;
     }
+    refreshArticleRect();
 
     // Update the Cosmic Dragon physics (orbital head pathfinding & dynamic member kinematics)
     updateDragonHead();
@@ -1292,8 +1329,7 @@
     ctx.clearRect(0, 0, width, height);
 
     drawConnections();
-    drawDragon();
-    updateShockwaves();
+    if (!isOverArticle()) drawDragon();
 
     for (let i = 0; i < particles.length; i++) {
       particles[i].update();
@@ -1307,6 +1343,7 @@
   function start() {
     if (!animationFrameId && enabled) {
       resize();
+      refreshArticleRect();
       const targetCount = width < 640 ? 60 : 120;
       particles = Array.from({ length: targetCount }, (_, i) => new Particle(i, targetCount));
       dragon.head.x = width / 2;
@@ -1334,6 +1371,7 @@
     }
     mouse.x = e.clientX;
     mouse.y = e.clientY;
+    refreshArticleRect();
     if (!mouse.hasMoved) {
       dragon.head.x = e.clientX;
       dragon.head.y = e.clientY;
@@ -1342,16 +1380,9 @@
     mouse.active = true;
   }
 
-  function onPointerDown(e) {
+  function onPointerDown() {
     if (!enabled) return;
     lastMoveAt = (typeof performance !== 'undefined' ? performance.now() : Date.now());
-
-    shockwaves.push({
-      x: e.clientX,
-      y: e.clientY,
-      currentRadius: 10,
-      maxRadius: 180
-    });
   }
 
   // Attach hover gravity to interactive cards and elements
@@ -1387,7 +1418,7 @@
     });
 
     // 2. Navigation and button hooks (when not over a post card)
-    const elements = document.querySelectorAll('.site-nav a, .site-nav button, .post-back-link, .post-nav-card');
+    const elements = document.querySelectorAll('.site-nav a, .post-back-link, .post-nav-card');
     elements.forEach((el) => {
       el.addEventListener('mouseenter', (e) => {
         if (!activeCard) {
@@ -1430,11 +1461,13 @@
       if (activeCard) {
         activeCardRect = activeCard.getBoundingClientRect();
       }
+      articleRectDirty = true;
     }
   });
 
   window.addEventListener('scroll', () => {
     cardRectDirty = true;
+    articleRectDirty = true;
   }, { passive: true });
 
   window.addEventListener('pointermove', onPointerMove, { passive: true });
@@ -1443,33 +1476,19 @@
     mouse.active = false;
   });
 
-  // Toggle API for button control
-  window.toggleParticles = function (forceState) {
-    enabled = typeof forceState === 'boolean' ? forceState : !enabled;
-    localStorage.setItem('particles_enabled', enabled ? 'true' : 'false');
-    const btn = document.getElementById('particle-toggle');
-    if (btn) {
-      btn.setAttribute('aria-pressed', enabled ? 'true' : 'false');
-      btn.classList.toggle('active', enabled);
-      btn.innerHTML = enabled ? '<span class="icon">&#9879;</span> FX: ON' : '<span class="icon">&#9879;</span> FX: OFF';
-    }
-    if (enabled) {
-      start();
-    } else {
-      stop();
-    }
-    return enabled;
-  };
-
-  // Lifecycle initialization
   function init() {
     setupInteractiveHooks();
-    const toggleBtn = document.getElementById('particle-toggle');
-    if (toggleBtn) {
-      toggleBtn.setAttribute('aria-pressed', enabled ? 'true' : 'false');
-      toggleBtn.classList.toggle('active', enabled);
-      toggleBtn.innerHTML = enabled ? '<span class="icon">&#9879;</span> FX: ON' : '<span class="icon">&#9879;</span> FX: OFF';
-      toggleBtn.addEventListener('click', () => window.toggleParticles());
+    const modeBtn = document.getElementById('particle-mode');
+    if (modeBtn) {
+      syncModeSwitch();
+      modeBtn.addEventListener('click', (e) => {
+        const opt = e.target.closest('.particle-mode-opt');
+        if (opt && opt.getAttribute('data-mode')) {
+          setAmbientMode(opt.getAttribute('data-mode'));
+        } else {
+          setAmbientMode(ambientMode === 'web' ? 'flow' : 'web');
+        }
+      });
     }
     if (enabled) start();
   }

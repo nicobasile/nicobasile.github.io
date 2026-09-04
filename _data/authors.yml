@@ -1,0 +1,5 @@
+# Keyed by the `author` string used in post front matter and _config.yml.
+# jekyll-seo-tag merges these fields in to build twitter:creator.
+Nicolas Basile:
+  name: Nicolas Basile
+  twitter: nicobasile_
