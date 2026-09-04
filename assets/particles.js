@@ -3,14 +3,14 @@
  * Zero dependencies, battery-conscious, high-performance particle background.
  *
  * Behaviors:
- * 1. Background Cursor: Living Cosmic Serpent dynamically recruited from nearby ambient particles.
+ * 1. Background Cursor: Living Cosmic Dragon dynamically recruited from nearby ambient particles.
  *    Smoothly pathfinds via a pursuit-orbit spiral into a stable, fluid circular orbit around
- *    the cursor. Particles are dragged/flowed into the chain with bilateral spring tension,
- *    momentum transfer, and transverse undulation waves.
+ *    the cursor. Particles are dragged/flowed into the chain and then glide along the exact
+ *    path the head traced, with wings that flap on a slow, independent cadence.
  * 2. Blog Post Card Hover: Pure rectangular gravity, solid box blocking & perimeter orbit.
- * 3. Ambient Dust & Idle: Fluid wake effects when serpent slithers past stars; graceful release
+ * 3. Ambient Dust & Idle: Fluid wake effects when the dragon glides past stars; graceful release
  *    and fast reset to neutral Brownian drift when idle.
- * 4. Constellation Filaments: Proximity linkages web between serpent coils and background stars.
+ * 4. Constellation Filaments: Proximity linkages web between dragon coils and background stars.
  */
 (function () {
   'use strict';
@@ -31,6 +31,7 @@
 
   // Palette: Subtle cosmic luminescence
   const PALETTE = ['#38bdf8', '#818cf8', '#c084fc', '#f472b6', '#60a5fa'];
+  const TWO_PI = Math.PI * 2;
 
   // Particle configuration
   const config = {
@@ -44,8 +45,9 @@
   let activeCard = null;
   let activeCardRect = null;
   let isHeaderHovered = false;
+  let cardRectDirty = false;
 
-  // Mouse & Cosmic Serpent Engine
+  // Mouse & Cosmic Dragon Engine
   const mouse = {
     x: 0,
     y: 0,
@@ -53,9 +55,9 @@
     hasMoved: false
   };
 
-  let snakeLength = window.innerWidth < 640 ? 14 : 20;
+  let dragonLength = window.innerWidth < 640 ? 14 : 20;
 
-  const snake = {
+  const dragon = {
     head: { x: 0, y: 0, vx: 0, vy: 0 },
     history: [], // [{x, y}], stores exact path samples recorded by the head
     members: [], // Dynamically recruited Particle instances [P_head, ..., P_tail]
@@ -71,10 +73,16 @@
     figA: 200, // half-width of the infinity
     figB: 110, // vertical lobe amplitude
     figSpeed: 1.9,
-    figDir: 1 // travel direction along the curve, latched for the whole idle run
+    figDir: 1, // travel direction along the curve, latched for the whole idle run
+    // Dragon animation clocks
+    beatPhase: 0, // slow wingbeat clock (drives the wings only, not flight speed)
+    sleepWeight: 0, // 1 = curled up asleep
+    rig: [], // appendage particles: [{ p, slot, settle }]
+    rigCooldown: 0
   };
 
   const IDLE_DELAY_MS = 3800; // let it circle a while before the infinity kicks in
+  const SLEEP_DELAY_MS = 24000; // after this long untouched, it curls up and dozes
   let lastMoveAt = (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
   // Gerono lemniscate (figure-8), centered at origin:
@@ -120,12 +128,43 @@
   // Shockwave array for clicks
   const shockwaves = [];
 
+  const DRAGON = {
+    headColor: '#c084fc',
+    midColor: '#818cf8',
+    tailColor: '#38bdf8',
+    crestColor: '#f472b6',
+    snoutLen: 20
+  };
+
+  // The dragon is a constellation: the spine is the recruited particle chain,
+  // and these slots are extra particles pulled out to form wings and horns.
+  // Every line is drawn between real particle positions, so nothing exists on
+  // screen until the particle that defines it has actually flown into place.
+  const WINGS = [
+    { anchor: 3, trail: 9, span: 48 } // one clear pair, swept back along the body
+  ];
+  const HORN_BACK = 7;
+  const HORN_OUT = 12;
+
+  // Slot table: snout, horns, then the wing elbow/tip joints per side
+  const RIG_SLOTS = [{ kind: 'snout' }];
+  for (let side = -1; side <= 1; side += 2) {
+    RIG_SLOTS.push({ kind: 'horn', side: side });
+  }
+  for (let w = 0; w < WINGS.length; w++) {
+    for (let side = -1; side <= 1; side += 2) {
+      RIG_SLOTS.push({ kind: 'wing', wing: w, side: side, part: 'mid' });
+      RIG_SLOTS.push({ kind: 'wing', wing: w, side: side, part: 'tip' });
+    }
+  }
+
   class Particle {
     constructor(index = 0, total = 100) {
       this.index = index;
       this.total = total;
-      this.isSnakeMember = false;
-      this.snakeWeight = 0;
+      this.isDragonMember = false;
+      this.dragonWeight = 0;
+      this.memberIndex = -1; // position in the spine, or -1 if not a vertebra
       this.reset(true);
     }
 
@@ -142,13 +181,15 @@
       this.vy = this.baseVy;
 
       this.radius = Math.random() * 1.5 + 1.1;
-      this.color = PALETTE[Math.floor(Math.random() * PALETTE.length)];
+      this.colorIndex = Math.floor(Math.random() * PALETTE.length);
+      this.color = PALETTE[this.colorIndex];
       this.alpha = Math.random() * 0.45 + 0.4;
       this.orbitOffset = (Math.random() - 0.5) * 22; // Particle-specific orbital track
       this.orbitSpeedFactor = 0.82 + Math.random() * 0.36;
 
-      this.isSnakeMember = false;
-      this.snakeWeight = 0;
+      this.isDragonMember = false;
+      this.dragonWeight = 0;
+      this.memberIndex = -1;
     }
 
     update() {
@@ -166,7 +207,7 @@
 
         const dx = this.x - cxEdge;
         const dy = this.y - cyEdge;
-        const distToBox = Math.hypot(dx, dy);
+        const distToBox = Math.sqrt(dx * dx + dy * dy);
 
         const isInside = this.x >= boxLeft && this.x <= boxRight && this.y >= boxTop && this.y <= boxBottom;
 
@@ -226,7 +267,7 @@
         // 2. Hovering navigation links
         const dx = pointAttractor.x - this.x;
         const dy = pointAttractor.y - this.y;
-        const dist = Math.hypot(dx, dy) || 1;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
         const pull = 0.055;
         this.vx += (dx / dist) * pull;
         this.vy += (dy / dist) * pull;
@@ -237,7 +278,7 @@
         const wave = shockwaves[i];
         const dx = this.x - wave.x;
         const dy = this.y - wave.y;
-        const dist = Math.hypot(dx, dy) || 1;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
         const diff = dist - wave.currentRadius;
 
         if (Math.abs(diff) < 35) {
@@ -251,7 +292,7 @@
       if (activeCard) {
         // Blog post card hover - keep exact current good speed and fluid damping
         const maxSpeed = 3.4;
-        const currentSpeed = Math.hypot(this.vx, this.vy);
+        const currentSpeed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
         if (currentSpeed > maxSpeed) {
           this.vx = (this.vx / currentSpeed) * maxSpeed;
           this.vy = (this.vy / currentSpeed) * maxSpeed;
@@ -259,19 +300,20 @@
         const currentDamping = 0.978;
         this.vx = this.vx * currentDamping + this.baseVx * (1 - currentDamping);
         this.vy = this.vy * currentDamping + this.baseVy * (1 - currentDamping);
-      } else if (this.isSnakeMember) {
-        // Dynamically recruited serpent member: fluid damping & speed cap
-        const maxSpeed = 3.2;
-        const currentSpeed = Math.hypot(this.vx, this.vy);
+      } else if (this.isDragonMember) {
+        // Dynamically recruited dragon member: fluid damping & speed cap
+        // (headroom above the head's cruise speed so the tail never detaches)
+        const maxSpeed = 4.2;
+        const currentSpeed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
         if (currentSpeed > maxSpeed) {
           this.vx = (this.vx / currentSpeed) * maxSpeed;
           this.vy = (this.vy / currentSpeed) * maxSpeed;
         }
-        const w = Math.min(1.0, Math.max(0.2, this.snakeWeight));
-        const snakeDamping = 0.92;
+        const w = Math.min(1.0, Math.max(0.2, this.dragonWeight));
+        const dragonDamping = 0.92;
         const ambientDamping = 0.88;
-        const effDamping = ambientDamping * (1 - w) + snakeDamping * w;
-        // Pure velocity decay for snake members so ambient drift doesn't bias the trailing vertebrae
+        const effDamping = ambientDamping * (1 - w) + dragonDamping * w;
+        // Pure velocity decay for dragon members so ambient drift doesn't bias the trailing vertebrae
         this.vx = this.vx * effDamping + this.baseVx * 0.04 * (1 - w);
         this.vy = this.vy * effDamping + this.baseVy * 0.04 * (1 - w);
       } else {
@@ -283,7 +325,7 @@
         // Subtle organic wander so neutral particles drift naturally in all directions
         this.baseVx += (Math.random() - 0.5) * 0.03;
         this.baseVy += (Math.random() - 0.5) * 0.03;
-        const speed = Math.hypot(this.baseVx, this.baseVy);
+        const speed = Math.sqrt(this.baseVx * this.baseVx + this.baseVy * this.baseVy);
         const targetSpeed = 0.42;
         if (speed > 0.001) {
           this.baseVx = (this.baseVx / speed) * targetSpeed;
@@ -301,34 +343,53 @@
       if (this.y > height + 25) this.y = -25;
     }
 
-    draw() {
-      // Glow aura around dynamically recruited snake head
-      if (snake.members.length > 0 && this === snake.members[0] && this.snakeWeight > 0.1) {
-        ctx.save();
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.radius * 2.8, 0, Math.PI * 2);
-        ctx.fillStyle = '#818cf8';
-        ctx.globalAlpha = 0.35 * this.snakeWeight * snake.activeWeight;
-        ctx.fill();
-        ctx.restore();
-      }
-
-      ctx.beginPath();
-      let rad = this.radius;
-      if (this.isSnakeMember && this.snakeWeight > 0.05) {
-        const memberIdx = snake.members.indexOf(this);
-        const ratio = memberIdx >= 0 ? memberIdx / Math.max(1, snake.members.length) : 0.5;
+    // Vertebrae swell slightly so they read as scale glints along the spine
+    radiusNow() {
+      if (this.isDragonMember && this.dragonWeight > 0.05) {
+        // memberIndex is stamped once per frame; an indexOf here would make
+        // drawing O(particles * spine length).
+        const memberIdx = this.memberIndex;
+        const ratio = memberIdx >= 0 ? memberIdx / Math.max(1, dragon.members.length) : 0.5;
         const targetRad = this.radius * (1.35 - 0.45 * ratio);
-        rad = this.radius * (1 - this.snakeWeight) + targetRad * this.snakeWeight;
+        return this.radius * (1 - this.dragonWeight) + targetRad * this.dragonWeight;
       }
-      ctx.arc(this.x, this.y, rad, 0, Math.PI * 2);
-      ctx.fillStyle = this.color;
-      ctx.globalAlpha = this.alpha;
-      ctx.fill();
+      return this.radius;
     }
   }
 
   let particles = [];
+
+  // Dots are grouped by palette colour and quantised opacity, then each group
+  // is filled as a single path. Otherwise every particle costs its own
+  // fillStyle change, beginPath and fill.
+  const ALPHA_STEPS = 4;
+  const dotBatches = [];
+  for (let c = 0; c < PALETTE.length * ALPHA_STEPS; c++) dotBatches.push([]);
+
+  function drawParticles() {
+    for (let b = 0; b < dotBatches.length; b++) dotBatches[b].length = 0;
+
+    for (let i = 0; i < particles.length; i++) {
+      const p = particles[i];
+      const step = Math.min(ALPHA_STEPS - 1, (p.alpha * ALPHA_STEPS) | 0);
+      const batch = dotBatches[p.colorIndex * ALPHA_STEPS + step];
+      batch.push(p.x, p.y, p.radiusNow());
+    }
+
+    for (let b = 0; b < dotBatches.length; b++) {
+      const dots = dotBatches[b];
+      if (dots.length === 0) continue;
+      ctx.fillStyle = PALETTE[(b / ALPHA_STEPS) | 0];
+      ctx.globalAlpha = ((b % ALPHA_STEPS) + 0.5) / ALPHA_STEPS;
+      ctx.beginPath();
+      for (let k = 0; k < dots.length; k += 3) {
+        // moveTo before each arc keeps the sub-paths from being joined
+        ctx.moveTo(dots[k] + dots[k + 2], dots[k + 1]);
+        ctx.arc(dots[k], dots[k + 1], dots[k + 2], 0, TWO_PI);
+      }
+      ctx.fill();
+    }
+  }
 
   function resize() {
     width = window.innerWidth;
@@ -342,39 +403,34 @@
 
     ctx.scale(dpr, dpr);
 
-    snakeLength = width < 640 ? 14 : 20;
+    dragonLength = width < 640 ? 14 : 20;
     const targetCount = width < 640 ? 60 : 120;
     if (particles.length !== targetCount) {
-      snake.members = [];
-      snake.history = [];
+      dragon.members = [];
+      dragon.history = [];
       particles = Array.from({ length: targetCount }, (_, i) => new Particle(i, targetCount));
     }
   }
 
+  // Opacity buckets for batched constellation strokes, allocated once
+  const LINK_BUCKETS = 5;
+  const linkBuckets = [];
+  for (let b = 0; b < LINK_BUCKETS; b++) linkBuckets.push([]);
+  const sortByX = (a, b) => a.x - b.x;
+
   function drawConnections() {
-    // 1. Glowing connected snake spine across dynamically recruited members
-    if (snake.members.length > 1) {
+    // 1. Recruitment beams. Adjacent vertebrae are no longer stroked here - the
+    //    dragon's ribbon body (drawDragon) renders the spine itself.
+    if (dragon.members.length > 1) {
       ctx.save();
-      for (let i = 1; i < snake.members.length; i++) {
-        const p1 = snake.members[i - 1];
-        const p2 = snake.members[i];
+      for (let i = 1; i < dragon.members.length; i++) {
+        const p1 = dragon.members[i - 1];
+        const p2 = dragon.members[i];
         const d = Math.hypot(p2.x - p1.x, p2.y - p1.y);
 
-        if (d < 36) {
-          // Connected spine link between adjacent vertebrae
-          const segAlpha = 0.45 * Math.min(p1.snakeWeight, p2.snakeWeight) * snake.activeWeight * (1 - d / 40);
-          if (segAlpha > 0.01) {
-            ctx.beginPath();
-            ctx.moveTo(p1.x, p1.y);
-            ctx.lineTo(p2.x, p2.y);
-            ctx.strokeStyle = '#a5b4fc';
-            ctx.lineWidth = 1.9;
-            ctx.globalAlpha = segAlpha;
-            ctx.stroke();
-          }
-        } else if (snake.activeWeight > 0.05) {
-          // Being pulled from ambient space toward the serpent: subtle magnetic attraction beam
-          const pullBeamAlpha = 0.16 * Math.max(0.1, 1 - d / 300) * snake.activeWeight;
+        if (d >= 36 && dragon.activeWeight > 0.05) {
+          // Being pulled from ambient space toward the dragon: subtle magnetic attraction beam
+          const pullBeamAlpha = 0.16 * Math.max(0.1, 1 - d / 300) * dragon.activeWeight;
           if (pullBeamAlpha > 0.01) {
             ctx.beginPath();
             ctx.moveTo(p1.x, p1.y);
@@ -389,19 +445,28 @@
       ctx.restore();
     }
 
-    // 2. Pairwise proximity constellation lines
+    // 2. Pairwise proximity constellation lines.
+    //    The particle list is kept sorted by x, so the inner loop can bail as
+    //    soon as the x gap alone exceeds the link radius. That turns the O(n^2)
+    //    sweep into roughly n * (neighbours within one 95px column).
+    //    Segments are then bucketed by opacity and each bucket is stroked as a
+    //    single path, so a few hundred link draws collapse into LINK_BUCKETS.
     const maxDist = config.maxDistance;
     const maxDistSq = maxDist * maxDist;
     const len = particles.length;
 
-    ctx.lineWidth = 0.75;
+    particles.sort(sortByX);
+
+    for (let b = 0; b < LINK_BUCKETS; b++) linkBuckets[b].length = 0;
 
     for (let i = 0; i < len; i++) {
       const p1 = particles[i];
       for (let j = i + 1; j < len; j++) {
         const p2 = particles[j];
         const dx = p1.x - p2.x;
+        if (-dx > maxDist) break; // sorted by x: nothing further right can reach
         const dy = p1.y - p2.y;
+        if (dy > maxDist || dy < -maxDist) continue;
         const distSq = dx * dx + dy * dy;
 
         if (distSq < maxDistSq) {
@@ -418,16 +483,406 @@
             p2.vy -= ry;
           }
 
-          const alpha = (1 - dist / maxDist) * 0.20;
-          ctx.strokeStyle = '#818cf8';
-          ctx.globalAlpha = alpha;
+          // Links touching the dragon are dimmed hard, otherwise the ambient
+          // web smears across the silhouette and hides its shape.
+          const onDragon = p1.isDragonMember || p2.isDragonMember;
+          const alpha = (1 - dist / maxDist) * (onDragon ? 0.05 : 0.20);
+          const bucket = linkBuckets[Math.min(LINK_BUCKETS - 1, (alpha / 0.20 * LINK_BUCKETS) | 0)];
+          bucket.push(p1.x, p1.y, p2.x, p2.y);
+        }
+      }
+    }
+
+    ctx.lineWidth = 0.75;
+    ctx.strokeStyle = '#818cf8';
+    for (let b = 0; b < LINK_BUCKETS; b++) {
+      const seg = linkBuckets[b];
+      if (seg.length === 0) continue;
+      ctx.globalAlpha = ((b + 0.5) / LINK_BUCKETS) * 0.20;
+      ctx.beginPath();
+      for (let k = 0; k < seg.length; k += 4) {
+        ctx.moveTo(seg[k], seg[k + 1]);
+        ctx.lineTo(seg[k + 2], seg[k + 3]);
+      }
+      ctx.stroke();
+    }
+  }
+
+  // ------------------------------------------------------------------
+  // Cosmic Dragon: a constellation, not a sprite.
+  // The spine is the recruited particle chain; wings and horns are extra
+  // recruited particles held at rig slots. Every stroke here connects real
+  // particle positions, and its opacity follows how well those particles have
+  // settled - so the dragon draws itself as the swarm arrives.
+  // ------------------------------------------------------------------
+
+  // Local frame (position + tangent + normal) at a spine member
+  function memberFrame(i) {
+    const mem = dragon.members;
+    const idx = Math.max(0, Math.min(mem.length - 1, i));
+    const a = mem[Math.max(0, idx - 1)];
+    const b = mem[Math.min(mem.length - 1, idx + 1)];
+    let tx = a.x - b.x; // points toward the head
+    let ty = a.y - b.y;
+    const m = Math.hypot(tx, ty) || 1;
+    tx /= m;
+    ty /= m;
+    return { x: mem[idx].x, y: mem[idx].y, tx: tx, ty: ty, nx: -ty, ny: tx, p: mem[idx] };
+  }
+
+  // Where a rig particle should sit right now, in the spine's local frame
+  function rigSlotTarget(slot) {
+    const mem = dragon.members;
+    if (slot.kind === 'snout' || slot.kind === 'horn') {
+      if (mem.length < 3) return null;
+      const f = memberFrame(0);
+      // Face along travel when moving, else along the neck
+      let dx = dragon.head.vx;
+      let dy = dragon.head.vy;
+      const dm = Math.hypot(dx, dy);
+      if (dm < 0.05) {
+        dx = f.tx;
+        dy = f.ty;
+      } else {
+        dx /= dm;
+        dy /= dm;
+      }
+      if (slot.kind === 'snout') {
+        return { x: f.x + dx * DRAGON.snoutLen, y: f.y + dy * DRAGON.snoutLen };
+      }
+      const droop = 1 - 0.4 * dragon.sleepWeight;
+      return {
+        x: f.x - dy * slot.side * HORN_OUT * droop - dx * HORN_BACK,
+        y: f.y + dx * slot.side * HORN_OUT * droop - dy * HORN_BACK
+      };
+    }
+
+    const cfg = WINGS[slot.wing];
+    if (mem.length <= cfg.trail) return null;
+    const f = memberFrame(cfg.anchor);
+
+    // Flap: wings sweep out on the downbeat and fold in on the upbeat,
+    // and stay folded against the flank while the dragon sleeps.
+    const flap = 0.5 + 0.5 * Math.sin(dragon.beatPhase - slot.wing * 0.6);
+    const ext = (0.34 + 0.66 * flap) * (1 - 0.88 * dragon.sleepWeight);
+
+    if (slot.part === 'mid') {
+      // Elbow: out to the side, slightly ahead of the shoulder
+      return {
+        x: f.x + f.nx * slot.side * cfg.span * 0.52 * ext + f.tx * cfg.span * 0.12,
+        y: f.y + f.ny * slot.side * cfg.span * 0.52 * ext + f.ty * cfg.span * 0.12
+      };
+    }
+    // Tip: further out and swept firmly BACK along the body
+    return {
+      x: f.x + f.nx * slot.side * cfg.span * 0.92 * ext - f.tx * cfg.span * 0.62,
+      y: f.y + f.ny * slot.side * cfg.span * 0.92 * ext - f.ty * cfg.span * 0.62
+    };
+  }
+
+  // Recruit and steer the appendage particles
+  function updateRig() {
+    if (dragon.activeWeight <= 0.001 || dragon.members.length < 6) {
+      for (let i = 0; i < dragon.rig.length; i++) {
+        dragon.rig[i].p.isDragonMember = false;
+        dragon.rig[i].p.dragonWeight = 0;
+      }
+      dragon.rig = [];
+      return;
+    }
+
+    const taken = {};
+    for (let i = 0; i < dragon.rig.length; i++) taken[dragon.rig[i].slot.key] = true;
+
+    // One new appendage particle at a time, always the nearest free one to the
+    // slot, so they visibly stream outward from the body instead of appearing.
+    dragon.rigCooldown--;
+    if (dragon.rig.length < RIG_SLOTS.length && dragon.rigCooldown <= 0) {
+      for (let s = 0; s < RIG_SLOTS.length; s++) {
+        const slot = RIG_SLOTS[s];
+        if (!slot.key) slot.key = slot.kind + s;
+        if (taken[slot.key]) continue;
+        const target = rigSlotTarget(slot);
+        if (!target) continue;
+
+        let best = null;
+        let bestD = Infinity;
+        for (let i = 0; i < particles.length; i++) {
+          const p = particles[i];
+          if (p.isDragonMember) continue;
+          const d = Math.hypot(p.x - target.x, p.y - target.y);
+          if (d < bestD) {
+            bestD = d;
+            best = p;
+          }
+        }
+        if (best) {
+          best.isDragonMember = true;
+          best.dragonWeight = 0.06;
+          best.memberIndex = -1; // appendage, not a vertebra
+          dragon.rig.push({ p: best, slot: slot, settle: 0 });
+          dragon.rigCooldown = 9;
+        }
+        break;
+      }
+    }
+
+    // Pull each rig particle toward its slot with the same easing as the spine
+    for (let i = dragon.rig.length - 1; i >= 0; i--) {
+      const entry = dragon.rig[i];
+      const p = entry.p;
+      const target = rigSlotTarget(entry.slot);
+      if (!target) continue;
+
+      p.dragonWeight = Math.min(1, p.dragonWeight + 0.018);
+
+      const dx = target.x - p.x;
+      const dy = target.y - p.y;
+      const d = Math.hypot(dx, dy);
+      entry.settle = 1 - Math.min(1, d / 55); // 0 = still flying in, 1 = in place
+      if (d > 0.01) {
+        const acc = Math.min(2.4, d * 0.16) * p.dragonWeight * dragon.activeWeight;
+        p.vx += (dx / d) * acc;
+        p.vy += (dy / d) * acc;
+      }
+    }
+  }
+
+  function drawDragon() {
+    const mem = dragon.members;
+    if (dragon.activeWeight <= 0.02 || mem.length < 4) return;
+
+    const A = dragon.activeWeight;
+    const awakeness = 1 - dragon.sleepWeight;
+
+    ctx.save();
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+
+    // ---- Spine: a glowing filament threaded through the vertebrae ----
+    // Two passes (soft wide halo, then a bright core) instead of a solid body,
+    // so the individual particles still read as particles.
+    for (let pass = 0; pass < 2; pass++) {
+      for (let i = 1; i < mem.length; i++) {
+        const a = mem[i - 1];
+        const b = mem[i];
+        const d = Math.hypot(b.x - a.x, b.y - a.y);
+        // Segments still being reeled in are left as recruitment beams
+        if (d > 34) continue;
+
+        const settle = Math.min(a.dragonWeight, b.dragonWeight);
+        const taper = 1 - (i / mem.length) * 0.72;
+        const alpha = (pass === 0 ? 0.1 : 0.4) * settle * A;
+        if (alpha < 0.012) continue;
+
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.strokeStyle = pass === 0 ? DRAGON.midColor : '#c7d2fe';
+        ctx.lineWidth = (pass === 0 ? 9 : 2.1) * taper;
+        ctx.globalAlpha = alpha;
+        ctx.stroke();
+      }
+    }
+
+    // ---- Wings: struts between real particles, with a faint membrane ----
+    for (let w = 0; w < WINGS.length; w++) {
+      const cfg = WINGS[w];
+      if (mem.length <= cfg.trail) continue;
+
+      for (let side = -1; side <= 1; side += 2) {
+        let mid = null;
+        let tip = null;
+        for (let r = 0; r < dragon.rig.length; r++) {
+          const e = dragon.rig[r];
+          if (e.slot.kind !== 'wing' || e.slot.wing !== w || e.slot.side !== side) continue;
+          if (e.slot.part === 'mid') mid = e;
+          else tip = e;
+        }
+        if (!mid || !tip) continue;
+
+        const shoulder = mem[cfg.anchor];
+        const trail = mem[cfg.trail];
+        // Fade the whole wing in with how settled its two joints are
+        const wf = Math.min(mid.settle || 0, tip.settle || 0) *
+          Math.min(mid.p.dragonWeight, tip.p.dragonWeight) * A * awakeness;
+        if (wf < 0.02) continue;
+
+        // Membrane: a wash that thins out toward the tip, so the wing reads as
+        // a veil stretched between the particles rather than a solid panel
+        ctx.beginPath();
+        ctx.moveTo(shoulder.x, shoulder.y);
+        ctx.lineTo(mid.p.x, mid.p.y);
+        ctx.lineTo(tip.p.x, tip.p.y);
+        ctx.lineTo(trail.x, trail.y);
+        ctx.closePath();
+        const veil = ctx.createLinearGradient(shoulder.x, shoulder.y, tip.p.x, tip.p.y);
+        veil.addColorStop(0, 'rgba(129, 140, 248, 0.22)');
+        veil.addColorStop(1, 'rgba(56, 189, 248, 0.02)');
+        ctx.fillStyle = veil;
+        ctx.globalAlpha = 0.75 * wf;
+        ctx.fill();
+
+        // Bones: shoulder -> elbow -> tip, plus the trailing edge back to the body
+        ctx.beginPath();
+        ctx.moveTo(shoulder.x, shoulder.y);
+        ctx.lineTo(mid.p.x, mid.p.y);
+        ctx.lineTo(tip.p.x, tip.p.y);
+        ctx.strokeStyle = DRAGON.headColor;
+        ctx.lineWidth = 1.3;
+        ctx.globalAlpha = 0.5 * wf;
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(tip.p.x, tip.p.y);
+        ctx.lineTo(trail.x, trail.y);
+        ctx.moveTo(mid.p.x, mid.p.y);
+        ctx.lineTo(trail.x, trail.y);
+        ctx.strokeStyle = DRAGON.tailColor;
+        ctx.lineWidth = 0.8;
+        ctx.globalAlpha = 0.3 * wf;
+        ctx.stroke();
+      }
+    }
+
+    // ---- Horns + face ----
+    const headP = mem[0];
+    const f = memberFrame(0);
+    let dirX = dragon.head.vx;
+    let dirY = dragon.head.vy;
+    const dm = Math.hypot(dirX, dirY);
+    if (dm < 0.05) {
+      dirX = f.tx;
+      dirY = f.ty;
+    } else {
+      dirX /= dm;
+      dirY /= dm;
+    }
+
+    let snoutE = null;
+    const hornE = [];
+    for (let r = 0; r < dragon.rig.length; r++) {
+      const e = dragon.rig[r];
+      if (e.slot.kind === 'snout') snoutE = e;
+      else if (e.slot.kind === 'horn') hornE.push(e);
+    }
+
+    // Skull: horn tips brace back from the brow, and each meets the snout so
+    // the three particles read as a wedge-shaped head.
+    for (let i = 0; i < hornE.length; i++) {
+      const e = hornE[i];
+      const hf = (e.settle || 0) * e.p.dragonWeight * A;
+      if (hf < 0.02) continue;
+      ctx.beginPath();
+      ctx.moveTo(headP.x, headP.y);
+      ctx.lineTo(e.p.x, e.p.y);
+      ctx.strokeStyle = DRAGON.crestColor;
+      ctx.lineWidth = 1.5;
+      ctx.globalAlpha = 0.45 * hf;
+      ctx.stroke();
+
+      if (snoutE) {
+        const jf = hf * (snoutE.settle || 0) * snoutE.p.dragonWeight;
+        if (jf > 0.02) {
           ctx.beginPath();
-          ctx.moveTo(p1.x, p1.y);
-          ctx.lineTo(p2.x, p2.y);
+          ctx.moveTo(e.p.x, e.p.y);
+          ctx.lineTo(snoutE.p.x, snoutE.p.y);
+          ctx.strokeStyle = '#c7d2fe';
+          ctx.lineWidth = 1.2;
+          ctx.globalAlpha = 0.4 * jf;
           ctx.stroke();
         }
       }
     }
+
+    if (snoutE) {
+      const sf = (snoutE.settle || 0) * snoutE.p.dragonWeight * A;
+      if (sf > 0.02) {
+        ctx.beginPath();
+        ctx.moveTo(headP.x, headP.y);
+        ctx.lineTo(snoutE.p.x, snoutE.p.y);
+        ctx.strokeStyle = '#c7d2fe';
+        ctx.lineWidth = 2;
+        ctx.globalAlpha = 0.5 * sf;
+        ctx.stroke();
+      }
+    }
+
+    // Eyes: two small sparks, only once the head particle has settled
+    if (headP.dragonWeight > 0.55) {
+      const eyeF = headP.dragonWeight * A;
+      const ex = headP.x + dirX * DRAGON.snoutLen * 0.3;
+      const ey = headP.y + dirY * DRAGON.snoutLen * 0.3;
+      const px = -dirY;
+      const py = dirX;
+      if (dragon.sleepWeight > 0.55) {
+        ctx.beginPath();
+        for (let sd = -1; sd <= 1; sd += 2) {
+          ctx.moveTo(ex + px * sd * 1.4, ey + py * sd * 1.4);
+          ctx.lineTo(ex + px * sd * 3.6, ey + py * sd * 3.6);
+        }
+        ctx.strokeStyle = DRAGON.midColor;
+        ctx.lineWidth = 1.1;
+        ctx.globalAlpha = 0.5 * eyeF;
+        ctx.stroke();
+      } else {
+        // Halo drawn as a second wider arc rather than shadowBlur, which costs
+        // a full blur pass on the canvas every frame.
+        ctx.globalAlpha = 0.22 * (0.9 - dragon.sleepWeight) * eyeF;
+        ctx.fillStyle = '#38bdf8';
+        ctx.beginPath();
+        for (let sd = -1; sd <= 1; sd += 2) {
+          ctx.moveTo(ex + px * sd * 2.5 + 4, ey + py * sd * 2.5);
+          ctx.arc(ex + px * sd * 2.5, ey + py * sd * 2.5, 4, 0, Math.PI * 2);
+        }
+        ctx.fill();
+
+        ctx.globalAlpha = (0.9 - dragon.sleepWeight) * eyeF;
+        ctx.fillStyle = '#f8fafc';
+        ctx.beginPath();
+        for (let sd = -1; sd <= 1; sd += 2) {
+          ctx.moveTo(ex + px * sd * 2.5 + 1.3, ey + py * sd * 2.5);
+          ctx.arc(ex + px * sd * 2.5, ey + py * sd * 2.5, 1.3, 0, Math.PI * 2);
+        }
+        ctx.fill();
+      }
+    }
+
+    // ---- Tail: a short forked flick of filament off the last vertebra ----
+    const tail = mem[mem.length - 1];
+    const tf = memberFrame(mem.length - 1);
+    const tailAlpha = tail.dragonWeight * A;
+    if (tailAlpha > 0.02) {
+      ctx.beginPath();
+      for (let sd = -1; sd <= 1; sd += 2) {
+        ctx.moveTo(tail.x, tail.y);
+        ctx.quadraticCurveTo(
+          tail.x - tf.tx * 9 + tf.nx * sd * 3,
+          tail.y - tf.ty * 9 + tf.ny * sd * 3,
+          tail.x - tf.tx * 15 + tf.nx * sd * 8,
+          tail.y - tf.ty * 15 + tf.ny * sd * 8
+        );
+      }
+      ctx.strokeStyle = DRAGON.tailColor;
+      ctx.lineWidth = 1.4;
+      ctx.globalAlpha = 0.45 * tailAlpha;
+      ctx.stroke();
+    }
+
+    // Sleeping: a slow drift of breath motes off the snout
+    if (dragon.sleepWeight > 0.4) {
+      ctx.globalAlpha = 0.28 * A * dragon.sleepWeight;
+      ctx.fillStyle = DRAGON.tailColor;
+      for (let z = 0; z < 3; z++) {
+        const ph = (dragon.beatPhase * 0.5 + z * 2.1) % 6.3;
+        ctx.beginPath();
+        ctx.arc(headP.x + dirX * (8 + ph * 4), headP.y + dirY * (8 + ph * 4) - ph * 3.5, 1.4 + z * 0.35, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    ctx.restore();
+    ctx.globalAlpha = 1;
   }
 
   function updateShockwaves() {
@@ -440,48 +895,64 @@
     }
   }
 
-  function updateSnakeHead() {
-    snake.time += 0.016;
+  function updateDragonHead() {
+    dragon.time += 0.016;
 
     if (mouse.active && !activeCard && !isHeaderHovered) {
-      snake.activeWeight = Math.min(1, snake.activeWeight + 0.05);
+      dragon.activeWeight = Math.min(1, dragon.activeWeight + 0.05);
     } else {
-      snake.activeWeight = Math.max(0, snake.activeWeight - 0.035);
+      dragon.activeWeight = Math.max(0, dragon.activeWeight - 0.035);
     }
 
-    if (snake.activeWeight <= 0.001) return;
+    if (dragon.activeWeight <= 0.001) return;
 
-    // ---- Idle detection: after a rest period, choreograph a big infinity ----
+    // ---- Idle detection: circle -> infinity -> curl up and sleep ----
     const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
-    const wantIdle = (now - lastMoveAt) > IDLE_DELAY_MS && mouse.active && !activeCard && !isHeaderHovered;
+    const restMs = now - lastMoveAt;
+    const awake = mouse.active && !activeCard && !isHeaderHovered;
+    const wantSleep = restMs > SLEEP_DELAY_MS && awake;
+    const wantIdle = restMs > IDLE_DELAY_MS && awake && !wantSleep;
+
+    // Sleep creeps in slowly but breaks instantly on the first twitch of the mouse
+    dragon.sleepWeight = wantSleep
+      ? Math.min(1, dragon.sleepWeight + 0.005)
+      : Math.max(0, dragon.sleepWeight - 0.06);
+
+    // Slow wingbeat clock. It drives the wings only - flight speed stays
+    // constant so the glide never pulses.
+    dragon.beatPhase += 0.024 * (1 - 0.75 * dragon.sleepWeight);
+
+    // Asleep: the orbit winds down into a tight, slow coil
+    const orbitR = dragon.orbitRadius * (1 - dragon.sleepWeight) + 30 * dragon.sleepWeight;
+    const orbitSpd = dragon.orbitSpeed * (1 - 0.72 * dragon.sleepWeight);
 
     if (wantIdle) {
-      if (snake.idleWeight <= 0.0001) {
+      if (dragon.idleWeight <= 0.0001) {
         // Size the lemniscate to the viewport, then latch onto the nearest point
         // on the curve so the transition is a pathfind, never a snap.
-        snake.figA = Math.max(120, Math.min(240, width * 0.22));
-        snake.figB = snake.figA * 0.56;
-        snake.figTheta = figClosestTheta(
-          snake.head.x - mouse.x,
-          snake.head.y - mouse.y,
-          snake.figA,
-          snake.figB
+        dragon.figA = Math.max(120, Math.min(240, width * 0.22));
+        dragon.figB = dragon.figA * 0.56;
+        dragon.figTheta = figClosestTheta(
+          dragon.head.x - mouse.x,
+          dragon.head.y - mouse.y,
+          dragon.figA,
+          dragon.figB
         );
 
         // Latch the travel direction to whichever way along the curve agrees
         // with the head's current momentum, then never change it for this run.
-        const entryTan = figTangent(snake.figTheta, snake.figA, snake.figB);
-        const along = entryTan.x * snake.head.vx + entryTan.y * snake.head.vy;
-        snake.figDir = along >= 0 ? 1 : -1;
+        const entryTan = figTangent(dragon.figTheta, dragon.figA, dragon.figB);
+        const along = entryTan.x * dragon.head.vx + entryTan.y * dragon.head.vy;
+        dragon.figDir = along >= 0 ? 1 : -1;
       }
-      snake.idleWeight = Math.min(1, snake.idleWeight + 0.01);
+      dragon.idleWeight = Math.min(1, dragon.idleWeight + 0.01);
     } else {
-      snake.idleWeight = Math.max(0, snake.idleWeight - 0.045);
+      dragon.idleWeight = Math.max(0, dragon.idleWeight - 0.045);
     }
 
-    // Vector from mouse cursor to snake head
-    const dx = snake.head.x - mouse.x;
-    const dy = snake.head.y - mouse.y;
+    // Vector from mouse cursor to dragon head
+    const dx = dragon.head.x - mouse.x;
+    const dy = dragon.head.y - mouse.y;
     const dist = Math.hypot(dx, dy) || 0.001;
     const nx = dx / dist; // outward radial unit vector
     const ny = dy / dist;
@@ -489,48 +960,48 @@
     // Dynamically establish spin direction on initial approach to avoid snaps.
     // Frozen during the infinity: angular momentum about the cursor legitimately
     // flips sign on each lobe, which would otherwise reverse the whole path.
-    const angMom = dx * snake.head.vy - dy * snake.head.vx;
-    if (Math.abs(angMom) > 12 && snake.idleWeight < 0.05) {
-      snake.spinDir = angMom >= 0 ? 1 : -1;
+    const angMom = dx * dragon.head.vy - dy * dragon.head.vx;
+    if (Math.abs(angMom) > 12 && dragon.idleWeight < 0.05) {
+      dragon.spinDir = angMom >= 0 ? 1 : -1;
     }
 
     // Tangent unit vector for circling around the cursor
     // In screen coordinates (+y down), for clockwise (spinDir = 1): tx = -ny, ty = nx
-    const s = snake.spinDir;
+    const s = dragon.spinDir;
     const tx = -s * ny;
     const ty = s * nx;
 
     // Orbital pathfinding (Lyapunov-stable pursuit-orbit spiral):
     // Radial error: distance minus desired orbit radius
-    const radialError = dist - snake.orbitRadius;
+    const radialError = dist - orbitR;
 
     // Inward/outward radial velocity:
     // Gentle radial steering to smoothly spiral in/out without sudden rushes
     const vRadial = Math.max(-2.2, Math.min(2.2, radialError * 0.038));
 
     // Desired composite velocity: circular orbit tangent + radial pathfinding
-    let desiredVx = tx * snake.orbitSpeed - nx * vRadial;
-    let desiredVy = ty * snake.orbitSpeed - ny * vRadial;
+    let desiredVx = tx * orbitSpd - nx * vRadial;
+    let desiredVy = ty * orbitSpd - ny * vRadial;
 
     // ---- Infinity choreography (blended in while the cursor rests) ----
-    if (snake.idleWeight > 0.0001) {
-      const A = snake.figA;
-      const B = snake.figB;
-      const dir = snake.figDir;
+    if (dragon.idleWeight > 0.0001) {
+      const A = dragon.figA;
+      const B = dragon.figB;
+      const dir = dragon.figDir;
 
       // Pure path-following ("carrot chasing"): re-project the head onto the
       // curve every frame instead of racing an independent clock. No lag can
       // accumulate, so the traced shape stays a true infinity.
-      const ox = snake.head.x - mouse.x;
-      const oy = snake.head.y - mouse.y;
+      const ox = dragon.head.x - mouse.x;
+      const oy = dragon.head.y - mouse.y;
 
       // Forward-only projection. Searching backwards lets the lobe tips and the
       // self-intersection snap theta onto the branch already travelled, which
       // reverses the carrot and destroys the figure-8 mid-loop.
-      let bestT = snake.figTheta;
+      let bestT = dragon.figTheta;
       let bestD = Infinity;
       for (let k = 0; k <= 14; k++) {
-        const t = snake.figTheta + k * 0.045 * dir;
+        const t = dragon.figTheta + k * 0.045 * dir;
         const q = figPoint(t, A, B);
         const d = (q.x - ox) * (q.x - ox) + (q.y - oy) * (q.y - oy);
         if (d < bestD) {
@@ -538,7 +1009,7 @@
           bestT = t;
         }
       }
-      snake.figTheta = bestT;
+      dragon.figTheta = bestT;
 
       // Carrot sits a fixed arc-length ahead of the projection
       const tan = figTangent(bestT, A, B);
@@ -546,63 +1017,68 @@
       const carrotT = bestT + (lookahead / tan.mag) * dir;
       const c = figPoint(carrotT, A, B);
 
-      const errX = mouse.x + c.x - snake.head.x;
-      const errY = mouse.y + c.y - snake.head.y;
+      const errX = mouse.x + c.x - dragon.head.x;
+      const errY = mouse.y + c.y - dragon.head.y;
       const errMag = Math.hypot(errX, errY) || 0.001;
 
-      const figVx = (errX / errMag) * snake.figSpeed;
-      const figVy = (errY / errMag) * snake.figSpeed;
+      const figSpd = dragon.figSpeed;
+      const figVx = (errX / errMag) * figSpd;
+      const figVy = (errY / errMag) * figSpd;
 
       // Keep theta bounded
-      if (snake.figTheta > Math.PI * 6) snake.figTheta -= Math.PI * 6;
-      if (snake.figTheta < -Math.PI * 6) snake.figTheta += Math.PI * 6;
+      if (dragon.figTheta > Math.PI * 6) dragon.figTheta -= Math.PI * 6;
+      if (dragon.figTheta < -Math.PI * 6) dragon.figTheta += Math.PI * 6;
 
-      const w = snake.idleWeight;
+      const w = dragon.idleWeight;
       desiredVx = desiredVx * (1 - w) + figVx * w;
       desiredVy = desiredVy * (1 - w) + figVy * w;
     }
 
     // Steering acceleration with natural momentum (gentle, unhurried)
-    const steerForce = 0.045 + 0.03 * snake.idleWeight;
-    snake.head.vx += (desiredVx - snake.head.vx) * steerForce;
-    snake.head.vy += (desiredVy - snake.head.vy) * steerForce;
+    const steerForce = 0.045 + 0.03 * dragon.idleWeight;
+    dragon.head.vx += (desiredVx - dragon.head.vx) * steerForce;
+    dragon.head.vy += (desiredVy - dragon.head.vy) * steerForce;
 
-    // Speed limiter on head: keep relaxed and graceful
-    const maxHeadSpeed = 2.4 + 0.7 * snake.idleWeight;
-    const headSpeed = Math.hypot(snake.head.vx, snake.head.vy);
+    // Speed limiter on head: one steady, graceful cruise speed
+    const maxHeadSpeed = (2.4 + 0.7 * dragon.idleWeight) * (1 - 0.6 * dragon.sleepWeight);
+    const headSpeed = Math.hypot(dragon.head.vx, dragon.head.vy);
     if (headSpeed > maxHeadSpeed) {
-      snake.head.vx = (snake.head.vx / headSpeed) * maxHeadSpeed;
-      snake.head.vy = (snake.head.vy / headSpeed) * maxHeadSpeed;
+      dragon.head.vx = (dragon.head.vx / headSpeed) * maxHeadSpeed;
+      dragon.head.vy = (dragon.head.vy / headSpeed) * maxHeadSpeed;
     }
 
-    snake.head.x += snake.head.vx;
-    snake.head.y += snake.head.vy;
+    dragon.head.x += dragon.head.vx;
+    dragon.head.y += dragon.head.vy;
 
-    // Record high-resolution breadcrumb trail for snake body vertebrae
-    snake.history.unshift({ x: snake.head.x, y: snake.head.y });
-    const maxHistorySamples = (snakeLength + 2) * 8;
-    if (snake.history.length > maxHistorySamples) {
-      snake.history.length = maxHistorySamples;
+    // Record the trail the body follows. Gated by distance, not by frame, so the
+    // path still spans the whole body when the dragon slows down to a crawl.
+    const last = dragon.history[0];
+    if (!last || Math.hypot(dragon.head.x - last.x, dragon.head.y - last.y) > 1.6) {
+      dragon.history.unshift({ x: dragon.head.x, y: dragon.head.y });
+      const maxHistorySamples = (dragonLength + 2) * 12;
+      if (dragon.history.length > maxHistorySamples) {
+        dragon.history.length = maxHistorySamples;
+      }
     }
   }
 
-  function updateSnakeMembers() {
-    if (snake.activeWeight <= 0.001) {
+  function updateDragonMembers() {
+    if (dragon.activeWeight <= 0.001) {
       // Disband all members
-      for (let i = 0; i < snake.members.length; i++) {
-        snake.members[i].isSnakeMember = false;
-        snake.members[i].snakeWeight = 0;
+      for (let i = 0; i < dragon.members.length; i++) {
+        dragon.members[i].isDragonMember = false;
+        dragon.members[i].dragonWeight = 0;
       }
-      snake.members = [];
-      snake.history = [];
+      dragon.members = [];
+      dragon.history = [];
       return;
     }
 
-    const targetCount = snakeLength;
+    const targetCount = dragonLength;
 
     if (mouse.active && !activeCard && !isHeaderHovered) {
       // 1. Initial seed: recruit the particle closest to the cursor position
-      if (snake.members.length === 0 && particles.length > 0) {
+      if (dragon.members.length === 0 && particles.length > 0) {
         let nearest = null;
         let minDist = Infinity;
         for (let i = 0; i < particles.length; i++) {
@@ -615,28 +1091,28 @@
         }
         if (nearest) {
           // Initialize head at nearest particle position so it doesn't jump
-          snake.head.x = nearest.x;
-          snake.head.y = nearest.y;
-          snake.head.vx = nearest.vx;
-          snake.head.vy = nearest.vy;
-          snake.history = [{ x: nearest.x, y: nearest.y }];
-          nearest.isSnakeMember = true;
-          nearest.snakeWeight = 0.05; // Starts small, gently gathers
-          snake.members.push(nearest);
-          snake.recruitCooldown = 8; // Paced delay before recruiting next segment
+          dragon.head.x = nearest.x;
+          dragon.head.y = nearest.y;
+          dragon.head.vx = nearest.vx;
+          dragon.head.vy = nearest.vy;
+          dragon.history = [{ x: nearest.x, y: nearest.y }];
+          nearest.isDragonMember = true;
+          nearest.dragonWeight = 0.05; // Starts small, gently gathers
+          dragon.members.push(nearest);
+          dragon.recruitCooldown = 8; // Paced delay before recruiting next segment
         }
       }
 
       // 2. Stream recruitment: gradually gather the unrecruited particles closest to the cursor
-      if (snake.members.length < targetCount && particles.length > 0) {
-        snake.recruitCooldown--;
-        if (snake.recruitCooldown <= 0) {
-          snake.recruitCooldown = 7; // Paced intake: 1 particle every 7 frames (~115ms) for gradual gathering
+      if (dragon.members.length < targetCount && particles.length > 0) {
+        dragon.recruitCooldown--;
+        if (dragon.recruitCooldown <= 0) {
+          dragon.recruitCooldown = 7; // Paced intake: 1 particle every 7 frames (~115ms) for gradual gathering
           let candidate = null;
           let minDistToCursor = Infinity;
           for (let i = 0; i < particles.length; i++) {
             const p = particles[i];
-            if (p.isSnakeMember) continue;
+            if (p.isDragonMember) continue;
             // Measure distance to cursor so nearby particles are gathered in order
             const d = Math.hypot(p.x - mouse.x, p.y - mouse.y);
             if (d < minDistToCursor) {
@@ -645,77 +1121,78 @@
             }
           }
           if (candidate) {
-            candidate.isSnakeMember = true;
-            candidate.snakeWeight = 0.08; // Starts with active pull weight
-            snake.members.push(candidate);
+            candidate.isDragonMember = true;
+            candidate.dragonWeight = 0.08; // Starts with active pull weight
+            dragon.members.push(candidate);
           }
         }
       }
 
-      // 3. Gradual weight ramp: slow, smooth blending into the snake chain
-      for (let i = 0; i < snake.members.length; i++) {
-        const p = snake.members[i];
-        p.snakeWeight = Math.min(1.0, p.snakeWeight + 0.018);
+      // 3. Gradual weight ramp: slow, smooth blending into the dragon chain
+      for (let i = 0; i < dragon.members.length; i++) {
+        const p = dragon.members[i];
+        p.dragonWeight = Math.min(1.0, p.dragonWeight + 0.018);
       }
 
       // 4. Broken link release: only release established members if mouse flicked far away
-      for (let i = 1; i < snake.members.length; i++) {
-        const prev = snake.members[i - 1];
-        const curr = snake.members[i];
-        if (curr.snakeWeight > 0.85 && Math.hypot(prev.x - curr.x, prev.y - curr.y) > 280) {
-          for (let k = i; k < snake.members.length; k++) {
-            snake.members[k].isSnakeMember = false;
-            snake.members[k].snakeWeight = 0;
+      for (let i = 1; i < dragon.members.length; i++) {
+        const prev = dragon.members[i - 1];
+        const curr = dragon.members[i];
+        if (curr.dragonWeight > 0.85 && Math.hypot(prev.x - curr.x, prev.y - curr.y) > 280) {
+          for (let k = i; k < dragon.members.length; k++) {
+            dragon.members[k].isDragonMember = false;
+            dragon.members[k].dragonWeight = 0;
           }
-          snake.members.splice(i);
+          dragon.members.splice(i);
           break;
         }
       }
     } else {
       // Mouse inactive or over card: smoothly release members back to ambient dust
-      for (let i = 0; i < snake.members.length; i++) {
-        const p = snake.members[i];
-        p.snakeWeight = Math.max(0.0, p.snakeWeight - 0.035);
-        if (p.snakeWeight <= 0.001) {
-          p.isSnakeMember = false;
+      for (let i = 0; i < dragon.members.length; i++) {
+        const p = dragon.members[i];
+        p.dragonWeight = Math.max(0.0, p.dragonWeight - 0.035);
+        if (p.dragonWeight <= 0.001) {
+          p.isDragonMember = false;
         }
       }
-      snake.members = snake.members.filter((p) => p.isSnakeMember);
+      dragon.members = dragon.members.filter((p) => p.isDragonMember);
     }
 
-    if (snake.members.length === 0) return;
+    if (dragon.members.length === 0) return;
 
     // 5. Kinematics along the spine: purely leader-follower pulled by the head
     // Body vertebrae follow the exact spatial path history traced by the head.
-    const count = snake.members.length;
-    const targetDist = 13.0; // Spacing along the arc of the head's trajectory
+    const count = dragon.members.length;
+    const targetDist = 15.0; // Spacing along the arc of the head's trajectory
 
-    // Head vertebra: pulled directly by the circling snake.head anchor
-    const p0 = snake.members[0];
-    const w0 = p0.snakeWeight * snake.activeWeight;
-    p0.vx += (snake.head.vx - p0.vx) * 0.35 * w0;
-    p0.vy += (snake.head.vy - p0.vy) * 0.35 * w0;
-    p0.vx += (snake.head.x - p0.x) * 0.18 * w0;
-    p0.vy += (snake.head.y - p0.y) * 0.18 * w0;
+    // Head vertebra: pulled directly by the circling dragon.head anchor
+    const p0 = dragon.members[0];
+    const w0 = p0.dragonWeight * dragon.activeWeight;
+    p0.vx += (dragon.head.vx - p0.vx) * 0.35 * w0;
+    p0.vy += (dragon.head.vy - p0.vy) * 0.35 * w0;
+    p0.vx += (dragon.head.x - p0.x) * 0.18 * w0;
+    p0.vy += (dragon.head.y - p0.y) * 0.18 * w0;
 
-    // Follower vertebrae: sampled at distance offsets along snake.history
+    // Follower vertebrae: sampled at distance offsets along dragon.history
     let accumDist = 0;
     let historyIdx = 0;
 
     for (let i = 1; i < count; i++) {
-      const curr = snake.members[i];
-      const prev = snake.members[i - 1];
-      const w = Math.max(0.25, curr.snakeWeight) * snake.activeWeight;
+      const curr = dragon.members[i];
+      const prev = dragon.members[i - 1];
+      const w = Math.max(0.25, curr.dragonWeight) * dragon.activeWeight;
       const desiredArcDist = i * targetDist;
+
 
       // Walk along head's recorded path history to find the point exactly desiredArcDist behind head
       let targetX = prev.x;
       let targetY = prev.y;
       let found = false;
 
-      while (historyIdx < snake.history.length - 1) {
-        const pA = snake.history[historyIdx];
-        const pB = snake.history[historyIdx + 1];
+      while (historyIdx < dragon.history.length - 1) {
+        const pA = dragon.history[historyIdx];
+        const pB = dragon.history[historyIdx + 1];
         const segLen = Math.hypot(pB.x - pA.x, pB.y - pA.y);
         if (accumDist + segLen >= desiredArcDist) {
           const ratio = segLen > 0.001 ? (desiredArcDist - accumDist) / segLen : 0;
@@ -737,13 +1214,18 @@
         targetY = prev.y + (dY / dist) * targetDist;
       }
 
+      // No travelling wave: the body tracks the head's traced path exactly, so
+      // the dragon glides instead of slithering.
+
       // Smooth pulling acceleration towards the target vertebra slot - NO TELEPORTATION
       const dX = targetX - curr.x;
       const dY = targetY - curr.y;
       const distToTarget = Math.hypot(dX, dY);
 
       if (distToTarget > 0.01) {
-        const pullFactor = curr.snakeWeight > 0.6 ? 0.20 : 0.12;
+        // Neck segments are deliberately looser so the head whips around corners
+        const neckSlack = i <= 3 ? 0.62 : 1;
+        const pullFactor = (curr.dragonWeight > 0.6 ? 0.20 : 0.12) * neckSlack;
         const pullAcc = Math.min(2.6, distToTarget * pullFactor) * w;
         curr.vx += (dX / distToTarget) * pullAcc;
         curr.vy += (dY / distToTarget) * pullAcc;
@@ -752,7 +1234,7 @@
       // Smooth spring linkage to predecessor once close, preventing spinal tearing without snapping
       const dToPrev = Math.hypot(prev.x - curr.x, prev.y - curr.y) || 0.001;
       const maxDist = targetDist * 1.85;
-      if (curr.snakeWeight > 0.8 && dToPrev > maxDist) {
+      if (curr.dragonWeight > 0.8 && dToPrev > maxDist) {
         const springForce = (dToPrev - maxDist) * 0.18 * w;
         curr.vx += ((prev.x - curr.x) / dToPrev) * springForce;
         curr.vy += ((prev.y - curr.y) / dToPrev) * springForce;
@@ -760,23 +1242,24 @@
 
       // When the pulled particle arrives near its target slot, accelerate weight integration
       if (distToTarget < 30) {
-        curr.snakeWeight = Math.min(1.0, curr.snakeWeight + 0.025);
+        curr.dragonWeight = Math.min(1.0, curr.dragonWeight + 0.025);
       }
     }
 
     // 6. Gentle wake disturbance on nearby non-member ambient particles
     for (let j = 0; j < particles.length; j++) {
       const amb = particles[j];
-      if (amb.isSnakeMember) continue;
+      if (amb.isDragonMember) continue;
       for (let s = 0; s < count; s += 4) {
-        const seg = snake.members[s];
+        const seg = dragon.members[s];
         const wdx = amb.x - seg.x;
         const wdy = amb.y - seg.y;
-        const wdist = Math.hypot(wdx, wdy);
+        if (wdx > 40 || wdx < -40 || wdy > 40 || wdy < -40) continue;
+        const wdist = Math.sqrt(wdx * wdx + wdy * wdy);
         if (wdist < 40 && wdist > 0.1) {
-          const push = (1 - wdist / 40) * 0.22 * snake.activeWeight;
-          amb.vx += (wdx / wdist) * push + seg.vx * 0.06 * snake.activeWeight;
-          amb.vy += (wdy / wdist) * push + seg.vy * 0.06 * snake.activeWeight;
+          const push = (1 - wdist / 40) * 0.22 * dragon.activeWeight;
+          amb.vx += (wdx / wdist) * push + seg.vx * 0.06 * dragon.activeWeight;
+          amb.vy += (wdy / wdist) * push + seg.vy * 0.06 * dragon.activeWeight;
         }
       }
     }
@@ -785,26 +1268,37 @@
   function loop() {
     if (!enabled) return;
 
-    // Cache current card bounding rect for high-accuracy animation during scroll/render
+    // Card rect is only re-measured when it can actually have moved. Reading it
+    // every frame forces a layout flush on each tick.
     if (activeCard) {
-      activeCardRect = activeCard.getBoundingClientRect();
+      if (!activeCardRect || cardRectDirty) {
+        activeCardRect = activeCard.getBoundingClientRect();
+        cardRectDirty = false;
+      }
     } else {
       activeCardRect = null;
     }
 
-    // Update the Cosmic Serpent physics (orbital head pathfinding & dynamic member kinematics)
-    updateSnakeHead();
-    updateSnakeMembers();
+    // Update the Cosmic Dragon physics (orbital head pathfinding & dynamic member kinematics)
+    updateDragonHead();
+    updateDragonMembers();
+    updateRig();
+
+    // Stamp spine positions once so drawing can read them in O(1)
+    for (let i = 0; i < dragon.members.length; i++) {
+      dragon.members[i].memberIndex = i;
+    }
 
     ctx.clearRect(0, 0, width, height);
 
     drawConnections();
+    drawDragon();
     updateShockwaves();
 
     for (let i = 0; i < particles.length; i++) {
       particles[i].update();
-      particles[i].draw();
     }
+    drawParticles();
 
     ctx.globalAlpha = 1.0;
     animationFrameId = requestAnimationFrame(loop);
@@ -815,8 +1309,8 @@
       resize();
       const targetCount = width < 640 ? 60 : 120;
       particles = Array.from({ length: targetCount }, (_, i) => new Particle(i, targetCount));
-      snake.head.x = width / 2;
-      snake.head.y = height / 2;
+      dragon.head.x = width / 2;
+      dragon.head.y = height / 2;
       animationFrameId = requestAnimationFrame(loop);
     }
   }
@@ -841,8 +1335,8 @@
     mouse.x = e.clientX;
     mouse.y = e.clientY;
     if (!mouse.hasMoved) {
-      snake.head.x = e.clientX;
-      snake.head.y = e.clientY;
+      dragon.head.x = e.clientX;
+      dragon.head.y = e.clientY;
       mouse.hasMoved = true;
     }
     mouse.active = true;
@@ -851,6 +1345,7 @@
   function onPointerDown(e) {
     if (!enabled) return;
     lastMoveAt = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+
     shockwaves.push({
       x: e.clientX,
       y: e.clientY,
@@ -861,7 +1356,7 @@
 
   // Attach hover gravity to interactive cards and elements
   function setupInteractiveHooks() {
-    // 0. Header exclusion: mouse over header deactivates snake
+    // 0. Header exclusion: mouse over header deactivates dragon
     const header = document.querySelector('.wrapper-masthead');
     if (header) {
       header.addEventListener('mouseenter', () => {
@@ -878,6 +1373,7 @@
       card.addEventListener('mouseenter', () => {
         activeCard = card;
         activeCardRect = card.getBoundingClientRect();
+        cardRectDirty = false;
       });
 
       card.addEventListener('mouseleave', (e) => {
@@ -936,6 +1432,10 @@
       }
     }
   });
+
+  window.addEventListener('scroll', () => {
+    cardRectDirty = true;
+  }, { passive: true });
 
   window.addEventListener('pointermove', onPointerMove, { passive: true });
   window.addEventListener('pointerdown', onPointerDown, { passive: true });
