@@ -14,8 +14,11 @@ locale: en_US
 # Name of the author
 author: Nicolas Basile
 
-# Short bio or description (displayed in the header)
-description: A collection of experiments
+# Used by jekyll-seo-tag and jekyll-feed for search snippets and social cards
+description: Personal research on intelligent systems, embodied AI, robot policy training, and accelerator infrastructure.
+
+# Short line displayed under the name in the header
+tagline: A collection of experiments
 
 # URL of your avatar or profile pic (you could use your GitHub profile pic)
 avatar: /images/robotic_gripper_neural_net_no_bg.png

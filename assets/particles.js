@@ -159,7 +159,7 @@
   };
 
   const IDLE_DELAY_MS = 3800; // let it circle a while before the infinity kicks in
-  const SLEEP_DELAY_MS = 24000; // after this long untouched, it curls up and dozes
+  const SLEEP_DELAY_MS = 20000; // after this long untouched, it curls up and dozes
   let lastMoveAt = (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
   // Gerono lemniscate (figure-8), centered at origin:

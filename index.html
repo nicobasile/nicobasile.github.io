@@ -3,10 +3,9 @@ layout: default
 ---
 
 <div class="home-hero">
-  <div class="hero-badge">Research &amp; Engineering</div>
-  <h1 class="hero-title">Scalable systems and physical intelligence.</h1>
+  <h1 class="hero-title">Ten thousand steps, then a breakthrough.</h1>
   <p class="hero-subtitle">
-    Personal research and deep dives into intelligent systems, embodied AI, robot policy training, and accelerator infrastructure.
+    Compounding, in machines and in people. Personal research on intelligent systems, embodied AI, and accelerator infrastructure.
   </p>
 </div>
 
@@ -47,7 +46,7 @@ layout: default
 <section class="posts-section">
   <div class="section-header">
     <h2 class="section-title" id="articles-heading">Latest Articles</h2>
-    <span class="section-count" id="posts-count-indicator">{{ site.posts.size }} Posts</span>
+    <span class="section-count" id="posts-count-indicator">{{ site.posts.size }} {% if site.posts.size == 1 %}article{% else %}articles{% endif %}</span>
   </div>
 
   <div class="post-cards-grid" id="posts-grid">
@@ -178,11 +177,11 @@ layout: default
             var label = activeTab ? activeTab.querySelector('.category-tab-text').innerText : 'Selected Topic';
             if (emptyTitle) emptyTitle.innerText = 'Upcoming Article in ' + label;
           }
-          if (countIndicator) countIndicator.innerText = '0 Posts';
+          if (countIndicator) countIndicator.innerText = '0 articles';
         } else {
           if (emptyCard) emptyCard.style.display = 'none';
           if (countIndicator) {
-            countIndicator.innerText = visibleCount + (visibleCount === 1 ? ' Post' : ' Posts');
+            countIndicator.innerText = visibleCount + (visibleCount === 1 ? ' article' : ' articles');
           }
         }
       }

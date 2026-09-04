@@ -11,68 +11,32 @@ media_alt: "Exp. E side view: confident pick-and-place after golden-ratio mixing
 media_url_2: /videos/top-1.gif
 media_type_2: image
 media_alt_2: "Exp. E top view: confident pick-and-place after golden-ratio mixing"
+findings:
+  - stat: "8% → 84%"
+    label: Pick-and-place success
+  - stat: "15 / 35 / 50"
+    label: Real / aug / sim mix
+  - stat: "N = 25"
+    label: Eval rollouts
+hero_compare:
+  - label: "Optimal mix"
+    caption: "<strong>Exp. E:</strong> confident pick-and-place after the 15/35/50 mix."
+  - label: "Weaker mix"
+    caption: "<strong>Exp. D:</strong> jittery, uncertain motion from a weaker mix."
+hero:
+  - url: /videos/side-1.gif
+    type: image
+    alt: "Exp. E side view: confident pick-and-place after golden-ratio mixing"
+  - url: /videos/top-1.gif
+    type: image
+    alt: "Exp. E top view: confident pick-and-place after golden-ratio mixing"
+  - url: /videos/side-2.gif
+    type: image
+    alt: "Exp. D side view: jittery, uncertain motion from a weaker mixing run"
+  - url: /videos/top-2.gif
+    type: image
+    alt: "Exp. D top view: jittery, uncertain motion from a weaker mixing run"
 ---
-
-<figure class="image">
-  <div class="gif-grid">
-    <div class="gif-wrapper">
-      <img src="/videos/side-1.gif" alt="Exp. E side view: confident pick-and-place after golden-ratio mixing" />
-    </div>
-    <div class="gif-wrapper">
-      <img src="/videos/top-1.gif" alt="Exp. E top view: confident pick-and-place after golden-ratio mixing" />
-    </div>
-    <div class="gif-wrapper">
-      <img src="/videos/side-2.gif" alt="Exp. D side view: jittery, uncertain motion from a weaker mixing run" />
-    </div>
-    <div class="gif-wrapper">
-      <img src="/videos/top-2.gif" alt="Exp. D top view: jittery, uncertain motion from a weaker mixing run" />
-    </div>
-  </div>
-  <figcaption style="margin: 8px 0 8px 0;">
-    <div style="color:#9aa0a6; font-size: 0.9em; margin-bottom: 5px;">
-      <b>Top:</b> From the final fine-tuned model: more confident movement (Exp. E)<br>
-      <b>Bottom:</b> Jittery, uncertain movement from a less performant training run (Exp. D)
-    </div>
-    <b>When does simulation data stop helping and start erasing real physics?</b><br>
-    Rebalancing real, augmented, and simulated data when fine-tuning a VLA on my SO-101 raised pick-and-place success from <b>8% to 84%</b>, without collecting more data.<br>
-    This post covers a six-way ablation of real / aug / sim batch composition.
-  </figcaption>
-</figure>
-<style>
-  /* The main grid container */
-  .gif-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
-    width: 100%;
-  }
-  /* The black container box for each GIF */
-  .gif-wrapper {
-    position: relative;
-    background-color: #151529; /* Black-blue background for padding */
-    border-radius: 12px;       /* Rounded corners move to the container */
-    width: 100%;
-    /* IMPORTANT: This defines the shape of all boxes. 
-       Adjust "4 / 3" to match the aspect ratio of your largest (3rd) GIF 
-       if you know it (e.g., "16 / 9" for wide, "1 / 1" for square).
-    */
-    aspect-ratio: 4 / 3; 
-    /* Flexbox used to center the image inside the black box */
-    display: flex;
-    justify-content: center; /* Centers horizontally */
-    align-items: center;     /* Centers vertically */
-    overflow: hidden;        /* Ensures image corners don't bleed past border-radius */
-  }
-  /* The images themselves */
-  .gif-wrapper img {
-    /* This ensures the image fits within the box without stretching */
-    max-width: 100%;
-    max-height: 100%;
-    object-fit: contain; 
-    display: block; /* Removes tiny inline spacing gaps */
-    margin: 0 !important; /* Override any global image margins */
-  }
-</style>
 
 ## Introduction
 
@@ -87,33 +51,6 @@ I attempted to bridge this gap by fine-tuning a VLA on a 1,200-trajectory corpus
 
 This post documents the counter-intuitive reality of VLA fine-tuning: **unanchored synthetic data scales visual robustness but degrades physical fidelity.** I introduce a **Golden Ratio mixing strategy** that anchors the model in reality, improving success rates from **8% to 84%**.
 
-### Key Findings
-
-- **Problem:** Unanchored synthetic mixing causes catastrophic forgetting of real contact dynamics ("synthetic amnesia").
-- **Method:** Tri-partitioned data (real / augmented / sim) with weighted batch composition inspired by golden-ratio mixing.
-- **Result:** Success 8% → 84% on pick-and-place (SO-101, N=25 eval rollouts, Wilson 95% CIs); optimal batch mix 15% / 35% / 50%.
-
----
-
-## Table of Contents
-- [Introduction](#introduction)
-  - [Key Findings](#key-findings)
-- [Architecture: The SmolVLA Approach](#architecture-the-smolvla-approach)
-  - [Model Selection: The Latency Bottleneck](#model-selection-the-latency-bottleneck)
-  - [Action Policy: CFM & Receding Horizon Control (RHC)](#action-policy-cfm--receding-horizon-control-rhc)
-- [The Filament Problem: Manifold Support](#the-filament-problem-manifold-support-in-action-space)
-- [Data: Mixing Real and Synthetic Trajectories](#data-mixing-real-and-synthetic-trajectories)
-- [Training: The Golden Ratio Strategy](#training-the-golden-ratio-strategy)
-  - [Ablation: Batch Composition Analysis](#ablation-batch-composition-analysis)
-  - [Fine-Tuning Strategy](#fine-tuning-strategy)
-- [Limitations](#limitations)
-- [Future Research Directions](#future-research-directions)
-  - [Cross-Embodiment & End-Effector (EE) Control](#cross-embodiment--end-effector-ee-control)
-  - [Scalability and Multi-Task Generalization](#scalability-and-multi-task-generalization)
-- [References](#references)
-
----
-
 ## Architecture: The SmolVLA Approach
 
 To address the latency and fidelity requirements of high-frequency control, SmolVLA decouples visual-semantic reasoning from motor-control execution:
@@ -122,13 +59,10 @@ To address the latency and fidelity requirements of high-frequency control, Smol
 2.  **Intermediate Feature Tapping:** To bypass the autoregressive bottleneck, activations are extracted from intermediate transformer blocks (Layer 15 of 30). This assumes that the later layers, optimized for linguistic syntax and abstract reasoning, are redundant for low-level spatial grounding.
 3.  **Flow-Matching Action Head:** These features are projected into a lightweight MLP-Transformer that predicts continuous joint trajectories via **Conditional Flow Matching (CFM)**.
 
-<div style="display: flex; flex-direction: column; align-items: center; width: 100%;">
-  <img src="/images/model_architecture.jpg" style="max-width: 100%; border-radius: 12px; margin-top:8px" alt="SmolVLA Architecture" />
-</div>
-
-<div style="margin-top:8px; color:#9aa0a6; font-size: 0.9em;">
-  SmolVLA consumes multi-view RGB and language instructions via SigLIP and SmolLM2 encoders, fusing them with a projected state token to predict continuous actions via a flow-matching transformer head.
-</div>
+<figure>
+  <img src="/images/model_architecture.jpg" alt="SmolVLA Architecture" />
+  <figcaption>SmolVLA consumes multi-view RGB and language via SigLIP and SmolLM2, fusing them with a projected state token to predict continuous actions via a flow-matching head.</figcaption>
+</figure>
 
 ### Model Selection: The Latency Bottleneck
 
@@ -156,9 +90,9 @@ The combination of the lightweight architecture and CFM enables **Receding Horiz
 
 * **Latency Masking:** Because of layer skipping, inference takes only ~100ms on an NVIDIA 3060 Ti, well within the 1.67s execution window. This allows the robot to move seamlessly without the "stutter" typical of synchronous VLM policies.
 
-<div style="display: flex; flex-direction: column; align-items: center; width: 100%; border: 1px solid gray; border-radius: 3px">
-  <img src="/images/action_chunks.jpg" style="max-width: 100%; border-radius: 12px; margin-top:8px" alt="Receding-Horizon Control" />
-</div>
+<figure>
+  <img src="/images/action_chunks.jpg" alt="Receding-Horizon Control" />
+</figure>
 
 A Note on Action Space: **Joint Space vs. Cartesian Poses**
 
@@ -168,7 +102,7 @@ However, my early attempts at EE control hit a wall. Mapping EE predictions to j
 
 Sholto Douglas noted in his work on orientation control that "Simplicity wins" - using Euler angles often beats elegant but fragile Quaternion math. Similarly, I found that predicting **Joint Positions** directly was significantly more robust for this iteration. While this locks the model to the SO-101's specific kinematics, it guarantees that every predicted action is physically executable. 
 
-Developing a robust IK stack—integrating **Pinocchio** <sup>[[7]](#ref-pinocchio)</sup> with **Null-space Projection** <sup>[[6]](#ref-robot-control)</sup>—and translating the existing dataset into Cartesian space is a priority for the next iteration. This will allow the model to learn *"Implicit Kinematics"* while maintaining the cross-embodiment benefits of EE control.
+Developing a robust IK stack (integrating **Pinocchio** <sup>[[7]](#ref-pinocchio)</sup> with **Null-space Projection** <sup>[[6]](#ref-robot-control)</sup>) and translating the existing dataset into Cartesian space is a priority for the next iteration. This will allow the model to learn *"Implicit Kinematics"* while maintaining the cross-embodiment benefits of EE control.
 
 ## The Filament Problem: Manifold Support in Action Space
 
@@ -188,15 +122,10 @@ The final dataset consisted of three distinct buckets:
 - **Real Teleoperation Data (N=50):** Collected on the SO-101 instructor arm setup <sup>[[9]](#ref-so-arm101)</sup> to anchor the policy in true physical dynamics.
 - **Augmented Real Data (N=150):** Generated via segmentation-based background replacement <sup>[[2]](#ref-datasocks)</sup> and **Kornia** <sup>[[3]](#ref-kornia)</sup> visual transforms. This forces the vision encoder to decouple kinematic signatures from visual framing.
 
-<div style="display: flex; flex-direction: column; align-items: center; width: 100%;">
-  <img src="/videos/augmented_synthetic_data.gif" style="max-width: 100%; border-radius: 12px; margin-top:8px" alt="Augmented Synthetic Data" />
-  
-  <div style="margin-top:8px; color:#9aa0a6; font-size: 0.9em;">
-    Example of the augmented real data. Credit to <a href="#ref-datasocks" rel="noopener noreferrer" style="color:#9aa0a6; text-decoration: underline;">
-      DataSocks.
-    </a>
-  </div>
-</div>
+<figure>
+  <img src="/videos/augmented_synthetic_data.gif" alt="Augmented Synthetic Data" />
+  <figcaption>Example of the augmented real data. Credit: <a href="#ref-datasocks">DataSocks</a>.</figcaption>
+</figure>
 
 - **Simulation Data (N=1000):** Generated primarily in ManiSkill <sup>[[15]](#ref-maniskill)</sup> (SAPIEN <sup>[[16]](#ref-sapien)</sup>) with a small fraction from MuJoCo. I matched the visual assets (block color, table texture) to the physical lab setup (Digital Twin). This provides the "volume" required for stable CFM vector fields.
 
@@ -218,69 +147,61 @@ For these benchmarks, **Success** is defined as grasping the object and placing 
 - Baseline (zero-shot SmolVLA): **~5%** success due to domain shift in my custom setup.
 - Fine-tuned variants:
 
-<div style="font-size: 0.9em; overflow-x: auto;">
-  <table style="width: 100%; border-collapse: collapse;">
-    <colgroup>
-      <col style="width: 8%">
-      <col style="width: 29%">
-      <col style="width: 18%">
-      <col style="width: 45%">
-    </colgroup> 
+<div class="table-scroll">
+  <table>
     <thead>
-      <tr style="border-bottom: 2px solid #ddd; text-align: left;">
-        <th style="padding: 8px;">Exp.</th>
-        <th style="padding: 8px;">Batch Composition<br>(% real, % aug, % sim)</th>
-        <th style="padding: 8px; text-align: center;">Success Rate</th>
-        <th style="padding: 8px;">Diagnosis</th>
+      <tr>
+        <th>Exp.</th>
+        <th>Batch composition<br>(% real / aug / sim)</th>
+        <th>Success</th>
+        <th>Diagnosis</th>
       </tr>
     </thead>
     <tbody>
-      <tr style="border-bottom: 1px solid #eee;">
-        <td style="padding: 8px;">Exp. A</td>
-        <td style="padding: 8px;"><b>100% / 0% / 0%</b><br>(Pure Real)</td>
-        <td style="padding: 8px; text-align: center; vertical-align: middle;">8% <br><span style="color:#666; font-size:0.85em;">(CI: 2% - 25%)</span></td>
-        <td style="padding: 8px;"><b>Filament Collapse:</b> Undefined vector field off-demonstration.</td>
+      <tr>
+        <td>A</td>
+        <td><b>100 / 0 / 0</b><br>Pure real</td>
+        <td>8%<br><span class="ci">CI 2–25%</span></td>
+        <td><b>Filament collapse:</b> undefined vector field off-demonstration.</td>
       </tr>
-      <tr style="border-bottom: 1px solid #eee;">
-        <td style="padding: 8px;">Exp. B</td>
-        <td style="padding: 8px;"><b>Uniform Sampling</b><br>(Naive)</td>
-        <td style="padding: 8px; text-align: center; vertical-align: middle;">36% <br><span style="color:#666; font-size:0.85em;">(CI: 20% - 55%)</span></td>
-        <td style="padding: 8px;"><b>Synthetic Amnesia:</b> Overfitted to sim-physics (perfect friction).</td>
+      <tr>
+        <td>B</td>
+        <td><b>Uniform</b><br>Naive</td>
+        <td>36%<br><span class="ci">CI 20–55%</span></td>
+        <td><b>Synthetic amnesia:</b> overfit to sim physics (perfect friction).</td>
       </tr>
-      <tr style="border-bottom: 1px solid #eee;">
-        <td style="padding: 8px;">Exp. C</td>
-        <td style="padding: 8px;"><b>35% / 15% / 50%</b><br></td>
-        <td style="padding: 8px; text-align: center; vertical-align: middle;">52% <br><span style="color:#666; font-size:0.85em;">(CI: 33% - 70%)</span></td>
-        <td style="padding: 8px;"><b>Rigid Generalization:</b> Stable but brittle to visual noise.</td>
+      <tr>
+        <td>C</td>
+        <td><b>35 / 15 / 50</b></td>
+        <td>52%<br><span class="ci">CI 33–70%</span></td>
+        <td><b>Rigid generalization:</b> stable but brittle to visual noise.</td>
       </tr>
-      <tr style="border-bottom: 1px solid #eee;">
-        <td style="padding: 8px;">Exp. D</td>
-        <td style="padding: 8px;"><b>25% / 25% / 50%</b></td>
-        <td style="padding: 8px; text-align: center; vertical-align: middle;">64% <br><span style="color:#666; font-size:0.85em;">(CI: 45% - 80%)</span></td>
-        <td style="padding: 8px;"><b>Visual Overfitting:</b> Brittle to lighting/viewpoint changes.</td>
+      <tr>
+        <td>D</td>
+        <td><b>25 / 25 / 50</b></td>
+        <td>64%<br><span class="ci">CI 45–80%</span></td>
+        <td><b>Visual overfitting:</b> brittle to lighting/viewpoint changes.</td>
       </tr>
-      <tr style="border-bottom: 1px solid #eee; background-color: #f0f7ff;">
-        <td style="padding: 8px;"><b>Exp. E</b></td>
-        <td style="padding: 8px;"><b>15% / 35% / 50%</b><br>(Optimal)</td>
-        <td style="padding: 8px; text-align: center; vertical-align: middle;"><b>84%</b> <br><span style="color:#666; font-size:0.85em;">(CI: 65% - 94%)</span></td>
-        <td style="padding: 8px;"><b>Optimal mix:</b> Balanced anchoring vs. topological support.</td>
+      <tr class="is-best">
+        <td><b>E</b></td>
+        <td><b>15 / 35 / 50</b><br>Optimal</td>
+        <td><b>84%</b><br><span class="ci">CI 65–94%</span></td>
+        <td><b>Optimal mix:</b> balanced anchoring vs. topological support.</td>
       </tr>
-      <tr style="border-bottom: 1px solid #eee;">
-        <td style="padding: 8px;">Exp. F</td>
-        <td style="padding: 8px;"><b>10% / 40% / 50%</b></td>
-        <td style="padding: 8px; text-align: center; vertical-align: middle;">72% <br><span style="color:#666; font-size:0.85em;">(CI: 52% - 86%)</span></td>
-        <td style="padding: 8px;"><b>Weak Anchoring:</b> Visual robustness with physical drift.</td>
+      <tr>
+        <td>F</td>
+        <td><b>10 / 40 / 50</b></td>
+        <td>72%<br><span class="ci">CI 52–86%</span></td>
+        <td><b>Weak anchoring:</b> visual robustness with physical drift.</td>
       </tr>
     </tbody>
   </table>
-  <div style="margin-top:8px; color:#666; font-size: 0.9em; line-height: 1.4;">
-      <b>Table 1:</b> Impact of Batch Composition on Success Rate. 95% Confidence Intervals (Wilson Score).
-  </div>
+  <p class="table-note"><b>Table 1.</b> Batch composition vs. pick-and-place success. 95% Wilson CIs. N=25 eval rollouts.</p>
 </div>
 
-<div style="display: flex; flex-direction: column; align-items: center; width: 100%;">
-  <img src="/images/result_chart.png" style="max-width: 100%; border-radius: 12px; margin-top:8px" alt="Result Chart" />
-</div>
+<figure>
+  <img src="/images/result_chart.png" alt="Result Chart" />
+</figure>
 
 ### Fine-Tuning Strategy
 
@@ -306,9 +227,9 @@ The current policy predicts **Joint Positions** (see Architecture for the IK-fai
 *   **Open Research Question:** *Can a VLA learn "Implicit Kinematics" from Cartesian supervision?*
     Switching to EE prediction hides joint-limit constraints. Will the VLA learn to output only those poses that are solvable, or will it hallucinate "valid" 3D coordinates that force the IK solver into singularities or self-collisions?
 
-<div style="display: flex; flex-direction: column; align-items: center; width: 100%;">
-  <img src="/images/ee_vs_joint.jpg" style="max-width: 100%; border-radius: 12px; margin-top:8px" alt="End-effector poses versus joint-space actions" />
-</div>
+<figure>
+  <img src="/images/ee_vs_joint.jpg" alt="End-effector poses versus joint-space actions" />
+</figure>
 
 ### Scalability and Multi-Task Generalization
 
@@ -319,34 +240,21 @@ SmolVLA (450M parameters) is sufficient for 30Hz RHC on a 3060 Ti, but it likely
 
 ## References
 
-1. <a id="ref-pi0"></a> **Pi-Zero** — Physical Intelligence: A Generalist Robot Policy. https://www.physicalintelligence.company/blog/pi0
-
-2. <a id="ref-datasocks"></a> **Augmented Datasocks** — Pravsels, Augmented Datasocks: Open-Source Teleoperation Hardware. https://github.com/pravsels/augmented_datasocks
-
-3. <a id="ref-kornia"></a> **Kornia** — Riba et al., Kornia: an Open Source Differentiable Computer Vision Library for PyTorch. https://kornia.readthedocs.io/en/stable
-
-4. <a id="ref-golden-ratio"></a> **Golden Ratio Mixing** — He et al., Golden Ratio Weighting Prevents Model Collapse. https://arxiv.org/abs/2502.18049
-
-5. <a id="ref-mimicgen"></a> **MimicGen** — Mandlekar et al., MimicGen: A Data Generation System for Scalable Robot Learning. https://mimicgen.github.io/
-
-6. <a id="ref-robot-control"></a> **Robot Control III** — Yan-Bin Jia, Robot Control III: Feedforward Control and Computed Torque (Iowa State University). https://faculty.sites.iastate.edu/jia/files/inline-files/robot%20control%20III.pdf
-
-7. <a id="ref-pinocchio"></a> **Pinocchio** — Carpentier et al., Pinocchio: A fast and efficient library for rigid body dynamics algorithms. https://github.com/stack-of-tasks/pinocchio
-
-8. <a id="ref-moveit"></a> **MoveIt** — Coleman et al., MoveIt: The Motion Planning Framework. https://moveit.ai/
-
-9. <a id="ref-so-arm101"></a> **SO-ARM101** — The Robot Studio, SO-ARM101: Open Source 6-Axis Robot Arm. https://github.com/TheRobotStudio/SO-ARM100
-
-10. <a id="ref-openvla"></a> **OpenVLA** — Kim et al., OpenVLA: An Open-Source Vision-Language-Action Model. https://openvla.github.io/
-
-11. <a id="ref-ros2"></a> **ROS 2 Humble** — Open Source Robotics Foundation, Robot Operating System 2 Humble Hawksbill. https://docs.ros.org/en/humble
-
-12. <a id="ref-smolvla"></a> **SmolVLA** — Hugging Face, SmolVLA Base Model. https://huggingface.co/lerobot/smolvla_base, https://huggingface.co/docs/lerobot/en/smolvla#finetune-smolvla-on-your-data
-
-13. <a id="ref-flow-matching"></a> **Conditional Flow Matching** — Lipman et al., Flow Matching for Generative Modeling. https://arxiv.org/abs/2210.02747
-
-14. <a id="ref-rt1"></a> **RT-1** — Brohan et al., RT-1: Robotics Transformer for Real-World Control at Scale. https://arxiv.org/abs/2206.02077
-
-15. <a id="ref-maniskill"></a> **ManiSkill** — Gu et al., ManiSkill: GPU Parallelized Robot Manipulation Benchmark. https://github.com/haosulab/ManiSkill
-
-16. <a id="ref-sapien"></a> **SAPIEN** — Xiang et al., SAPIEN: A SimulAted Part-based Interactive ENvironment. https://sapien.ucsd.edu/
+<ol class="ref-list">
+  <li id="ref-pi0"><strong>Pi-Zero</strong> — Physical Intelligence. <a href="https://www.physicalintelligence.company/blog/pi0">physicalintelligence.company</a></li>
+  <li id="ref-datasocks"><strong>Augmented Datasocks</strong> — Pravsels. <a href="https://github.com/pravsels/augmented_datasocks">github.com/pravsels/augmented_datasocks</a></li>
+  <li id="ref-kornia"><strong>Kornia</strong> — Riba et al. <a href="https://kornia.readthedocs.io/en/stable">kornia.readthedocs.io</a></li>
+  <li id="ref-golden-ratio"><strong>Golden Ratio Mixing</strong> — He et al. <a href="https://arxiv.org/abs/2502.18049">arXiv:2502.18049</a></li>
+  <li id="ref-mimicgen"><strong>MimicGen</strong> — Mandlekar et al. <a href="https://mimicgen.github.io/">mimicgen.github.io</a></li>
+  <li id="ref-robot-control"><strong>Robot Control III</strong> — Yan-Bin Jia. <a href="https://faculty.sites.iastate.edu/jia/files/inline-files/robot%20control%20III.pdf">Iowa State notes (PDF)</a></li>
+  <li id="ref-pinocchio"><strong>Pinocchio</strong> — Carpentier et al. <a href="https://github.com/stack-of-tasks/pinocchio">github.com/stack-of-tasks/pinocchio</a></li>
+  <li id="ref-moveit"><strong>MoveIt</strong> — Coleman et al. <a href="https://moveit.ai/">moveit.ai</a></li>
+  <li id="ref-so-arm101"><strong>SO-ARM101</strong> — The Robot Studio. <a href="https://github.com/TheRobotStudio/SO-ARM100">github.com/TheRobotStudio/SO-ARM100</a></li>
+  <li id="ref-openvla"><strong>OpenVLA</strong> — Kim et al. <a href="https://openvla.github.io/">openvla.github.io</a></li>
+  <li id="ref-ros2"><strong>ROS 2 Humble</strong> — Open Source Robotics Foundation. <a href="https://docs.ros.org/en/humble">docs.ros.org/humble</a></li>
+  <li id="ref-smolvla"><strong>SmolVLA</strong> — Hugging Face. <a href="https://huggingface.co/lerobot/smolvla_base">lerobot/smolvla_base</a>, <a href="https://huggingface.co/docs/lerobot/en/smolvla#finetune-smolvla-on-your-data">fine-tune docs</a></li>
+  <li id="ref-flow-matching"><strong>Conditional Flow Matching</strong> — Lipman et al. <a href="https://arxiv.org/abs/2210.02747">arXiv:2210.02747</a></li>
+  <li id="ref-rt1"><strong>RT-1</strong> — Brohan et al. <a href="https://arxiv.org/abs/2206.02077">arXiv:2206.02077</a></li>
+  <li id="ref-maniskill"><strong>ManiSkill</strong> — Gu et al. <a href="https://github.com/haosulab/ManiSkill">github.com/haosulab/ManiSkill</a></li>
+  <li id="ref-sapien"><strong>SAPIEN</strong> — Xiang et al. <a href="https://sapien.ucsd.edu/">sapien.ucsd.edu</a></li>
+</ol>

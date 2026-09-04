@@ -2,68 +2,148 @@
 layout: default
 ---
 
-<article class="post detailed">
-  <div class="post-header">
-    <a href="{{ site.baseurl }}/" class="post-back-link">
-      <span class="back-arrow">&larr;</span> All articles
-    </a>
+<div class="post-shell">
+  <aside class="post-toc-aside" hidden>
+    <details class="post-toc" id="post-toc-box">
+      <summary>
+        <span class="post-toc-kicker">Contents</span>
+        <span class="post-toc-now" hidden></span>
+      </summary>
+      <nav id="post-toc" aria-label="On this page"></nav>
+    </details>
+  </aside>
 
-    <h1 class="post-title">{{ page.title }}</h1>
+  <article class="post detailed">
+    <div class="post-header">
+      <a href="{{ site.baseurl }}/" class="post-back-link">
+        <span class="back-arrow">&larr;</span> All articles
+      </a>
 
-    <div class="post-meta-bar">
-      <div class="post-author-info">
-        <span class="post-author-name">{{ site.author }}</span>
-        <span class="meta-dot">&middot;</span>
-        <time datetime="{{ page.date | date_to_xmlschema }}" class="post-date">
-          {{ page.date | date: "%B %e, %Y" }}
-        </time>
-        {% if page.last_modified_at %}
+      <h1 class="post-title">{{ page.title }}</h1>
+
+      {% if page.hook %}
+        <p class="post-lede">{{ page.hook }}</p>
+      {% endif %}
+
+      {% if page.findings %}
+        <dl class="findings-strip">
+          {% for f in page.findings %}
+            <div class="findings-cell">
+              <dt>{{ f.stat }}</dt>
+              <dd>{{ f.label }}</dd>
+            </div>
+          {% endfor %}
+        </dl>
+      {% endif %}
+
+      <div class="post-meta-bar">
+        <div class="post-author-info">
+          <span class="post-author-name">{{ site.author }}</span>
           <span class="meta-dot">&middot;</span>
-          <span class="post-updated">(Updated {{ page.last_modified_at | date: "%b %e, %Y" }})</span>
-        {% endif %}
-        <span class="meta-dot">&middot;</span>
-        {% assign words = content | number_of_words %}
-        {% assign read_time = words | divided_by: 200 | at_least: 1 %}
-        <span class="post-readtime">{{ read_time }} min read</span>
-      </div>
+          <time datetime="{{ page.date | date_to_xmlschema }}" class="post-date">
+            {{ page.date | date: "%B %e, %Y" }}
+          </time>
+          {% if page.last_modified_at %}
+            <span class="meta-dot">&middot;</span>
+            <span class="post-updated">(Updated {{ page.last_modified_at | date: "%b %e, %Y" }})</span>
+          {% endif %}
+          <span class="meta-dot">&middot;</span>
+          {% assign words = content | number_of_words %}
+          {% assign read_time = words | divided_by: 200 | at_least: 1 %}
+          <span class="post-readtime">{{ read_time }} min read</span>
+        </div>
 
-      <div class="post-tags">
-        {% if post %}
-          {% assign categories = post.categories %}
-        {% else %}
+        <div class="post-tags">
           {% assign categories = page.categories %}
+          {% for category in categories %}
+            <a href="{{ site.baseurl }}/#{{ category | slugize }}" class="category-chip category-chip-{{ category | slugize }}" data-category="{{ category | slugize }}">{{ category }}</a>
+          {% endfor %}
+        </div>
+      </div>
+
+      {% if page.hero %}
+        {% if page.hero_compare %}
+          {% assign pair_size = page.hero.size | divided_by: page.hero_compare.size %}
+          {% assign first_pair = page.hero_compare | first %}
+          <figure class="post-hero is-compare">
+            <div class="hero-compare-switch" role="tablist" aria-label="Compare experiment mixes">
+              {% for pair in page.hero_compare %}
+                <button type="button"
+                  class="hero-compare-tab{% if forloop.first %} is-active{% endif %}"
+                  role="tab"
+                  aria-selected="{% if forloop.first %}true{% else %}false{% endif %}"
+                  data-pair-tab="{{ forloop.index0 }}"
+                  data-caption="{{ pair.caption | escape }}">{{ pair.label }}</button>
+              {% endfor %}
+            </div>
+            {% for pair in page.hero_compare %}
+              {% assign pair_start = forloop.index0 | times: pair_size %}
+              <div class="post-hero-grid count-{{ pair_size }} hero-pair"
+                data-pair-pane="{{ forloop.index0 }}"
+                {% unless forloop.first %}hidden{% endunless %}>
+                {% for item in page.hero offset: pair_start limit: pair_size %}
+                  <div class="post-hero-cell">
+                    {% if item.type == 'video' %}
+                      <video autoplay muted loop playsinline controls preload="metadata">
+                        <source src="{{ site.baseurl }}{{ item.url }}" type="video/mp4" />
+                      </video>
+                    {% else %}
+                      <img src="{{ site.baseurl }}{{ item.url }}" alt="{{ item.alt | default: page.title }}" />
+                    {% endif %}
+                  </div>
+                {% endfor %}
+              </div>
+            {% endfor %}
+            <figcaption class="hero-compare-caption">{{ first_pair.caption }}</figcaption>
+          </figure>
+        {% else %}
+          <figure class="post-hero">
+            <div class="post-hero-grid count-{{ page.hero.size }}">
+              {% for item in page.hero %}
+                <div class="post-hero-cell">
+                  {% if item.type == 'video' %}
+                    <video autoplay muted loop playsinline controls preload="metadata">
+                      <source src="{{ site.baseurl }}{{ item.url }}" type="video/mp4" />
+                    </video>
+                  {% else %}
+                    <img src="{{ site.baseurl }}{{ item.url }}" alt="{{ item.alt | default: page.title }}" />
+                  {% endif %}
+                </div>
+              {% endfor %}
+            </div>
+            {% if page.hero_caption %}
+              <figcaption>{{ page.hero_caption }}</figcaption>
+            {% endif %}
+          </figure>
         {% endif %}
-        {% for category in categories %}
-          <a href="{{ site.baseurl }}/#{{ category | slugize }}" class="category-chip category-chip-{{ category | slugize }}" data-category="{{ category | slugize }}">{{ category }}</a>
-        {% endfor %}
+      {% endif %}
+    </div>
+
+    <div class="entry post-entry">
+      {{ content }}
+    </div>
+
+    <div class="post-footer">
+      <div class="post-share">
+        <span class="share-label">Share:</span>
+        <a href="https://twitter.com/intent/tweet?text={{ page.title | url_encode }}&url={{ site.url }}{{ page.url }}" target="_blank" rel="noopener noreferrer" class="share-link">X (Twitter)</a>
+        <a href="https://www.linkedin.com/sharing/share-offsite/?url={{ site.url }}{{ page.url }}" target="_blank" rel="noopener noreferrer" class="share-link">LinkedIn</a>
+      </div>
+
+      <div class="post-pagination">
+        {% if page.previous.url %}
+          <a href="{{ site.baseurl }}{{ page.previous.url }}" class="post-nav-card prev">
+            <span class="nav-direction">&larr; Previous</span>
+            <span class="nav-title">{{ page.previous.title }}</span>
+          </a>
+        {% endif %}
+        {% if page.next.url %}
+          <a href="{{ site.baseurl }}{{ page.next.url }}" class="post-nav-card next">
+            <span class="nav-direction">Next &rarr;</span>
+            <span class="nav-title">{{ page.next.title }}</span>
+          </a>
+        {% endif %}
       </div>
     </div>
-  </div>
-    
-  <div class="entry post-entry">
-    {{ content }}
-  </div>
-
-  <div class="post-footer">
-    <div class="post-share">
-      <span class="share-label">Share:</span>
-      <a href="https://twitter.com/intent/tweet?text={{ page.title | url_encode }}&url={{ site.url }}{{ page.url }}" target="_blank" rel="noopener noreferrer" class="share-link">X (Twitter)</a>
-      <a href="https://www.linkedin.com/sharing/share-offsite/?url={{ site.url }}{{ page.url }}" target="_blank" rel="noopener noreferrer" class="share-link">LinkedIn</a>
-    </div>
-
-    <div class="post-pagination">
-      {% if page.previous.url %}
-        <a href="{{ site.baseurl }}{{ page.previous.url }}" class="post-nav-card prev">
-          <span class="nav-direction">&larr; Previous</span>
-          <span class="nav-title">{{ page.previous.title }}</span>
-        </a>
-      {% endif %}
-      {% if page.next.url %}
-        <a href="{{ site.baseurl }}{{ page.next.url }}" class="post-nav-card next">
-          <span class="nav-direction">Next &rarr;</span>
-          <span class="nav-title">{{ page.next.title }}</span>
-        </a>
-      {% endif %}
-    </div>
-  </div>
-</article>
+  </article>
+</div>

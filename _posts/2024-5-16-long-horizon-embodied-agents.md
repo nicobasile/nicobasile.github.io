@@ -11,30 +11,28 @@ media_alt: "Autonomous embodied agent skill execution in Minecraft"
 media_url_2: /videos/cactus.mp4
 media_type_2: video
 media_alt_2: "Autonomous farm harvesting task"
+findings:
+  - stat: "~20%"
+    label: Success-rate lift
+  - stat: ">40%"
+    label: Fewer prompt iterations
+  - stat: "20"
+    label: Episodes per task
+hero_caption: 'Credit: <a href="#ref-voyager">NVIDIA Voyager</a>'
+hero:
+  - url: /videos/base.mp4
+    type: video
+    alt: "Autonomous embodied agent skill execution in Minecraft"
+  - url: /videos/cactus.mp4
+    type: video
+    alt: "Autonomous farm harvesting task"
+  - url: /videos/gold.mp4
+    type: video
+    alt: "Gold collection task"
+  - url: /videos/pig.mp4
+    type: video
+    alt: "Livestock task"
 ---
-
-<figure style="display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;">
-  <video autoplay controls playsinline muted loop style="width:100%; border-radius:12px;">
-    <source src="/videos/base.mp4" type="video/mp4" />
-  </video>
-  <video autoplay controls playsinline muted loop style="width:100%; border-radius:12px;">
-    <source src="/videos/cactus.mp4" type="video/mp4" />
-  </video>
-  <video autoplay controls playsinline muted loop style="width:100%; border-radius:12px;">
-    <source src="/videos/gold.mp4" type="video/mp4" />
-  </video>
-  <video autoplay controls playsinline muted loop style="width:100%; border-radius:12px;">
-    <source src="/videos/pig.mp4" type="video/mp4" />
-  </video>
-</figure>
-<figcaption style="margin: 8px 0 8px 0;">
-  <div style="color:#9aa0a6; font-size: 0.9em; margin-bottom: 5px;">
-    Credit to <a href="#ref-voyager" rel="noopener noreferrer" style="color:#9aa0a6; text-decoration: underline;">
-      NVIDIA Voyager
-    </a>
-  </div>
-  Building on <b>NVIDIA’s Voyager</b>, this project explores how <b>hierarchical memory</b> and a lightweight, RL-inspired policy search implemented with <b>DSPy</b> can improve an embodied agent's behavior. The learned policies improved success rates by ~20% while reducing inference cost.
-</figcaption>
 
 ## Introduction
 
@@ -49,22 +47,6 @@ On a suite of multi-stage objectives, these changes improved success rates an av
 - Evaluation: 5 random seeds × 4 episodes per seed = 20 episodes/task (no initial inventory).
 - Prompting iterations: number of planner/tool-selector regeneration attempts, capped at 50 as in Voyager.
 - Success criteria: Task dependent - typically an inventory check, or structure built.
-
----
-## Table of Contents
-- [Introduction](#introduction)
-- [What I built](#what-i-built)
-  - [1) Structured memory](#1-structured-memory)
-  - [2) Hierarchical planning](#2-hierarchical-planning)
-  - [3) Tool use that actually holds up over long horizons](#3-tool-use-that-actually-holds-up-over-long-horizons)
-- [Prompt + policy improvement via DSPy](#prompt--policy-improvement-via-dspy)
-  - [VLMs as reward models](#vlms-as-reward-models)
-  - [DSPy turns scaffolding design into optimization](#dspy-turns-scaffolding-design-into-optimization)
-- [Why this matters](#why-this-matters)
-  - [Related work: Odyssey (open-world skills)](#related-work-odyssey-open-world-skills)
-- [References](#references)
-
----
 
 ## What I built
 
@@ -140,21 +122,14 @@ This project is intentionally **orthogonal**. Rather than primarily increasing s
 
 ## References
 
-1. <a id="ref-dspy"></a> **DSPy** — Khattab et al., *DSPy: Compiling Declarative Language Model Calls into Self-Improving Pipelines*. https://arxiv.org/abs/2310.03714
-
-2. <a id="ref-reflexion"></a> **Reflexion** — Shinn et al., *Reflexion: Language Agents with Verbal Reinforcement Learning*. https://arxiv.org/abs/2303.11366
-
-3. <a id="ref-react"></a> **ReAct** — Yao et al., *ReAct: Synergizing Reasoning and Acting in Language Models*. https://arxiv.org/abs/2210.03629
-
-4. <a id="ref-vlm-reward-iclr"></a> **VLMs as Zero-Shot Reward Models** — Rocamonde et al., *Vision-Language Models are Zero-Shot Reward Models for Reinforcement Learning* (ICLR 2024). https://openreview.net/forum?id=N0I2RtD8je
-
-5. <a id="ref-vlm-source-rewards"></a> **VLMs as a Source of Rewards** — Baumli et al., *Vision-Language Models as a Source of Rewards*. https://arxiv.org/abs/2312.09187
-
-6. <a id="ref-odyssey"></a> **Odyssey** — Liu et al., *Odyssey: Empowering Minecraft Agents with Open-World Skills*. https://arxiv.org/abs/2407.15325
-
-7. <a id="ref-odyssey-code"></a> **Odyssey (code)** — https://github.com/zju-vipa/Odyssey
-
-8. <a id="ref-voyager"></a> **Voyager** - Wang et al., *Voyager: An Open-Ended Embodied Agent
-with Large Language Models*. https://arxiv.org/pdf/2305.16291
-
-9. <a id="ref-voyager-code"></a> **Voyager (code)** — https://github.com/MineDojo/Voyager
+<ol class="ref-list">
+  <li id="ref-dspy"><strong>DSPy</strong> — Khattab et al. <a href="https://arxiv.org/abs/2310.03714">arXiv:2310.03714</a></li>
+  <li id="ref-reflexion"><strong>Reflexion</strong> — Shinn et al. <a href="https://arxiv.org/abs/2303.11366">arXiv:2303.11366</a></li>
+  <li id="ref-react"><strong>ReAct</strong> — Yao et al. <a href="https://arxiv.org/abs/2210.03629">arXiv:2210.03629</a></li>
+  <li id="ref-vlm-reward-iclr"><strong>VLMs as Zero-Shot Reward Models</strong> — Rocamonde et al., ICLR 2024. <a href="https://openreview.net/forum?id=N0I2RtD8je">OpenReview</a></li>
+  <li id="ref-vlm-source-rewards"><strong>VLMs as a Source of Rewards</strong> — Baumli et al. <a href="https://arxiv.org/abs/2312.09187">arXiv:2312.09187</a></li>
+  <li id="ref-odyssey"><strong>Odyssey</strong> — Liu et al. <a href="https://arxiv.org/abs/2407.15325">arXiv:2407.15325</a></li>
+  <li id="ref-odyssey-code"><strong>Odyssey (code)</strong> — <a href="https://github.com/zju-vipa/Odyssey">github.com/zju-vipa/Odyssey</a></li>
+  <li id="ref-voyager"><strong>Voyager</strong> — Wang et al. <a href="https://arxiv.org/pdf/2305.16291">arXiv:2305.16291</a></li>
+  <li id="ref-voyager-code"><strong>Voyager (code)</strong> — <a href="https://github.com/MineDojo/Voyager">github.com/MineDojo/Voyager</a></li>
+</ol>
