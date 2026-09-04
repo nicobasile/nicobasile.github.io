@@ -1,6 +1,6 @@
 ---
 layout: post
-title: Robotic Foundation Model Training - Anchoring Physics with Golden Ratios
+title: Anchoring Simulation Physics To Reality - VLA Fine-Tuning 
 categories: [embodied-ai, robotics]
 author: Nicolas Basile
 ---
@@ -25,7 +25,9 @@ author: Nicolas Basile
       <b>Top:</b> From the final fine-tuned model: more confident movement (Exp. E)<br>
       <b>Bottom:</b> Jittery, uncertain movement from a less performant training run (Exp. D)
     </div>
-    Six-way ablation study of <b>real / augmented / simulation</b> batch composition for SmolVLA fine-tuning. Optimal mix: 15% / 35% / 50%. <b>Success: 8% → 84%</b> on held-out pick-and-place.
+    <b>When does simulation data stop helping and start erasing real physics?</b><br>
+    Rebalancing real, augmented, and simulated data when fine-tuning a VLA on my SO-101 raised pick-and-place success from <b>8% to 84%</b>, without collecting more data.<br>
+    This post covers a six-way ablation of real / aug / sim batch composition.
   </figcaption>
 </figure>
 <style>

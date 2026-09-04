@@ -25,7 +25,7 @@ author: Nicolas Basile
       NVIDIA Voyager
     </a>
   </div>
-  Building on the foundation of <b>NVIDIA’s Voyager</b>, this project introduces a self-optimizing agent architecture. By combining <b>structured hierarchical memory</b> with <b>DSPy-driven policy search</b>, I demonstrate how we can improve success rates by ~20% while significantly reducing the inference cost needed to get there.
+  Building on <b>NVIDIA’s Voyager</b>, this project explores how <b>hierarchical memory</b> and a lightweight, RL-inspired policy search implemented with <b>DSPy</b> can improve an embodied agent's behavior. The learned policies improved success rates by ~20% while reducing inference cost.
 </figcaption>
 
 ## Introduction
