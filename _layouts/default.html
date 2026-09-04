@@ -1,54 +1,136 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
+    <meta charset="utf-8">
     <title>{% if page.title %}{{ page.title }} – {% endif %}{{ site.name }} – {{ site.description }}</title>
     {% seo title=false %}
     {% include meta.html %}
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 
     <link rel="stylesheet" type="text/css" href="{{ site.baseurl }}/assets/style.css" />
     <link rel="alternate" type="application/rss+xml" title="{{ site.name }} - {{ site.description }}" href="{{ site.baseurl }}/feed.xml" />
     <link rel="canonical" href="{{ site.url }}{{ page.url }}" />
 
-    <meta name="theme-color" content="#000000">
+    <meta name="theme-color" content="#090d16">
     <link rel="icon" type="image/png" sizes="512x512" href="{{ site.baseurl }}/images/favicon-512x512.png">
     {% include analytics_head.html %}
   </head>
 
   <body>
-    <div id="bar"></div>
-    <div class="wrapper-container">
-      <div class="wrapper-masthead">
-        <div class="container">
-          <header class="masthead clearfix">
-            <a href="{{ site.baseurl }}/" class="site-avatar"><img src="{{ site.baseurl }}{{ site.avatar }}" alt="{{ site.title }}" /></a>
+    <!-- Background interactive gravity canvas -->
+    <canvas id="particle-canvas" class="particle-canvas" aria-hidden="true"></canvas>
 
+    <div class="wrapper-container">
+      <header class="wrapper-masthead">
+        <div class="container masthead-inner">
+          <div class="masthead-brand">
+            <a href="{{ site.baseurl }}/" class="site-avatar" aria-label="Homepage">
+              <img src="{{ site.baseurl }}{{ site.avatar }}" alt="Nico Basile" />
+            </a>
             <div class="site-info">
-              <h1 class="site-name"><a href="{{ site.baseurl }}/">{{ site.name }}</a></h1>
+              <div class="site-name"><a href="{{ site.baseurl }}/">Nico Basile</a></div>
               <p class="site-description">{{ site.description }}</p> 
             </div>
+          </div>
 
-            <nav>
-              <a href="{{ site.baseurl }}/">Home</a>
-              <a href="{{ site.baseurl }}/about">About</a>
-            </nav>
-          </header>
+          <nav class="site-nav" aria-label="Main navigation">
+            <a href="{{ site.baseurl }}/">Home</a>
+            <a href="{{ site.baseurl }}/about/">About</a>
+            <button id="particle-toggle" class="particle-toggle-btn" aria-label="Toggle background particles" title="Toggle particles">
+              <span class="icon">&#9879;</span> FX: ON
+            </button>
+          </nav>
         </div>
-      </div>
+      </header>
 
-      <div class="wrapper-main">
+      <main class="wrapper-main">
         <div id="main" role="main" class="container">
           {{ content }}
         </div>
-      </div>
+      </main>
 
-      <div class="wrapper-footer">
-        <div class="container">
-          <footer class="footer">
+      <footer class="wrapper-footer">
+        <div class="container footer-content">
+          <div class="footer-links">
             {% include svg-icons.html %}
-          </footer>
+          </div>
+          <p class="footer-copy">&copy; {{ 'now' | date: "%Y" }} {{ site.author }}</p>
         </div>
-      </div>
+      </footer>
     </div>
+
+    <!-- Particle physics engine -->
+    <script src="{{ site.baseurl }}/assets/particles.js" defer></script>
+
+    <!-- Code block copy functionality -->
+    <script>
+      document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('pre.highlight, div.highlight > pre').forEach(function (pre) {
+          var wrapper = pre.parentElement;
+          if (!wrapper.classList.contains('code-block-wrapper')) {
+            var container = document.createElement('div');
+            container.className = 'code-block-wrapper';
+            pre.parentNode.insertBefore(container, pre);
+            container.appendChild(pre);
+
+            var button = document.createElement('button');
+            button.className = 'copy-code-btn';
+            button.type = 'button';
+            button.setAttribute('aria-label', 'Copy code to clipboard');
+            button.innerText = 'Copy';
+
+            button.addEventListener('click', function () {
+              var text = pre.innerText;
+              navigator.clipboard.writeText(text).then(function () {
+                button.innerText = 'Copied!';
+                button.classList.add('copied');
+                setTimeout(function () {
+                  button.innerText = 'Copy';
+                  button.classList.remove('copied');
+                }, 2000);
+              });
+            });
+
+            container.appendChild(button);
+          }
+        });
+
+        // 1. Post Card Click Delegation: Click anywhere to open the post, except category buttons
+        document.querySelectorAll('.post-card').forEach(function (card) {
+          card.addEventListener('click', function (e) {
+            // Exclude clicks on category chips, category buttons, or their child elements
+            if (e.target.closest('.category-chip') || e.target.closest('.category-pill') || e.target.closest('.post-card-categories')) {
+              return;
+            }
+            var url = card.getAttribute('data-url');
+            if (url) {
+              if (e.metaKey || e.ctrlKey) {
+                window.open(url, '_blank');
+              } else {
+                window.location.href = url;
+              }
+            }
+          });
+
+          // Keyboard accessibility: Enter or Space opens the card
+          card.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+              if (e.target.closest('.category-chip') || e.target.closest('.category-pill')) {
+                return;
+              }
+              e.preventDefault();
+              var url = card.getAttribute('data-url');
+              if (url) {
+                window.location.href = url;
+              }
+            }
+          });
+        });
+      });
+    </script>
 
     {% include analytics.html %}
   </body>

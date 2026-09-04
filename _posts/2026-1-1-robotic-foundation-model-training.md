@@ -3,6 +3,14 @@ layout: post
 title: Anchoring Simulation Physics To Reality - VLA Fine-Tuning 
 categories: [embodied-ai, robotics]
 author: Nicolas Basile
+description: "When does simulation data stop helping and start erasing real physics? Rebalancing real, augmented, and simulated data when fine-tuning a VLA on my SO-101 raised pick-and-place success from 8% to 84%, without collecting more data. This post covers a six-way ablation of real / aug / sim batch composition."
+hook: "<strong>When does simulation data stop helping and start erasing real physics?</strong> Rebalancing real, augmented, and simulated data when fine-tuning a VLA on my SO-101 raised pick-and-place success from <strong>8% to 84%</strong>, without collecting more data. This post covers a six-way ablation of real / aug / sim batch composition."
+media_type: image
+media_url: /videos/side-1.gif
+media_alt: "Exp. E side view: confident pick-and-place after golden-ratio mixing"
+media_url_2: /videos/top-1.gif
+media_type_2: image
+media_alt_2: "Exp. E top view: confident pick-and-place after golden-ratio mixing"
 ---
 
 <figure class="image">

@@ -3,37 +3,69 @@ layout: default
 ---
 
 <article class="post detailed">
-  <h1>{{ page.title }}</h1>
+  <div class="post-header">
+    <a href="{{ site.baseurl }}/" class="post-back-link">
+      <span class="back-arrow">&larr;</span> All articles
+    </a>
 
-  <div>
-    <p class="author_title">{{site.author}}  ·  {{ page.date | date: "%B %e, %Y" }}</p>
-    {% if page.last_modified_at %}
-    <p class="author_title" datetime="{{ page.last_modified_at | date_to_xmlschema }}">(Updated: {{ page.last_modified_at | date: "%b %-d, %Y" }})</p>
-    {% endif %}
-    <div class="post-tags">
-      {% if post %}
-        {% assign categories = post.categories %}
-      {% else %}
-        {% assign categories = page.categories %}
-      {% endif %}
-      {% for category in categories %}
-        <a href="{{site.baseurl}}/categories/#{{category|slugize}}">{{category}}</a>
-        {% unless forloop.last %}&nbsp;{% endunless %}
-      {% endfor %}
+    <h1 class="post-title">{{ page.title }}</h1>
+
+    <div class="post-meta-bar">
+      <div class="post-author-info">
+        <span class="post-author-name">{{ site.author }}</span>
+        <span class="meta-dot">&middot;</span>
+        <time datetime="{{ page.date | date_to_xmlschema }}" class="post-date">
+          {{ page.date | date: "%B %e, %Y" }}
+        </time>
+        {% if page.last_modified_at %}
+          <span class="meta-dot">&middot;</span>
+          <span class="post-updated">(Updated {{ page.last_modified_at | date: "%b %e, %Y" }})</span>
+        {% endif %}
+        <span class="meta-dot">&middot;</span>
+        {% assign words = content | number_of_words %}
+        {% assign read_time = words | divided_by: 200 | at_least: 1 %}
+        <span class="post-readtime">{{ read_time }} min read</span>
+      </div>
+
+      <div class="post-tags">
+        {% if post %}
+          {% assign categories = post.categories %}
+        {% else %}
+          {% assign categories = page.categories %}
+        {% endif %}
+        {% for category in categories %}
+          <a href="{{ site.baseurl }}/#{{ category | slugize }}" class="category-chip category-chip-{{ category | slugize }}" data-category="{{ category | slugize }}">{{ category }}</a>
+        {% endfor %}
+      </div>
     </div>
   </div>
     
-  <div class="entry">
+  <div class="entry post-entry">
     {{ content }}
   </div>
 
-  <div>
-    <p><span class="share-box">Share:</span> <a href="http://twitter.com/share?text={{ page.title }}&url={{site.url}}{{page.url}}" target="_blank">Twitter</a>, <a href="https://www.facebook.com/sharer.php?u={{site.url}}{{page.url}}" target="_blank">Facebook</a></p>
+  <div class="post-footer">
+    <div class="post-share">
+      <span class="share-label">Share:</span>
+      <a href="https://twitter.com/intent/tweet?text={{ page.title | url_encode }}&url={{ site.url }}{{ page.url }}" target="_blank" rel="noopener noreferrer" class="share-link">X (Twitter)</a>
+      <a href="https://www.linkedin.com/sharing/share-offsite/?url={{ site.url }}{{ page.url }}" target="_blank" rel="noopener noreferrer" class="share-link">LinkedIn</a>
+    </div>
+
+    <div class="post-pagination">
+      {% if page.previous.url %}
+        <a href="{{ site.baseurl }}{{ page.previous.url }}" class="post-nav-card prev">
+          <span class="nav-direction">&larr; Previous</span>
+          <span class="nav-title">{{ page.previous.title }}</span>
+        </a>
+      {% endif %}
+      {% if page.next.url %}
+        <a href="{{ site.baseurl }}{{ page.next.url }}" class="post-nav-card next">
+          <span class="nav-direction">Next &rarr;</span>
+          <span class="nav-title">{{ page.next.title }}</span>
+        </a>
+      {% endif %}
+    </div>
+
+    {% include disqus.html %}
   </div>
-
-  <!--<div class="date">
-    Written on {{ page.date | date: "%B %e, %Y" }}
-  </div>-->
-
-  {% include disqus.html %}
 </article>

@@ -3,6 +3,14 @@ layout: post
 title: Enhancing Long-Horizon Embodied Agents in Open-World 3D Environments
 categories: [embodied-ai, agents]
 author: Nicolas Basile
+description: "Building on NVIDIA’s Voyager, this project explores how hierarchical memory and a lightweight, RL-inspired policy search implemented with DSPy can improve an embodied agent's behavior. The learned policies improved success rates by ~20% while reducing inference cost."
+hook: "Building on <strong>NVIDIA’s Voyager</strong>, this project explores how <strong>hierarchical memory</strong> and a lightweight, RL-inspired policy search implemented with <strong>DSPy</strong> can improve an embodied agent's behavior. The learned policies improved success rates by <strong>~20%</strong> while reducing inference cost."
+media_type: video
+media_url: /videos/base.mp4
+media_alt: "Autonomous embodied agent skill execution in Minecraft"
+media_url_2: /videos/cactus.mp4
+media_type_2: video
+media_alt_2: "Autonomous farm harvesting task"
 ---
 
 <figure style="display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;">

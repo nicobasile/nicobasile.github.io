@@ -2,11 +2,12 @@
 layout: default
 ---
 
-<article class="page">
+<article class="page detailed">
+  <header class="page-header">
+    <h1 class="page-title">{{ page.title }}</h1>
+  </header>
 
-  <h1>{{ page.title }}</h1>
-
-  <div class="entry">
+  <div class="entry page-entry">
     {{ content }}
   </div>
 </article>

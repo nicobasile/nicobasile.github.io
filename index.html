@@ -2,48 +2,263 @@
 layout: default
 ---
 
-<div class="posts">
-  {% for post in paginator.posts %}
-    <article class="post">
-      <a href="{{ site.baseurl }}{{ post.url }}">
-        <h1>{{ post.title }}</h1>
+<div class="home-hero">
+  <div class="hero-badge">Research &amp; Engineering</div>
+  <h1 class="hero-title">Scalable systems and physical intelligence.</h1>
+  <p class="hero-subtitle">
+    Personal research and deep dives into intelligent systems, embodied AI, robot policy training, and accelerator infrastructure.
+  </p>
+</div>
 
-        <div>
-          <p class="post_date">{{ post.date | date: "%B %e, %Y" }}</p>
+<!-- Focus Areas / Categories Bar listed side by side with distinct colors and topics of interest -->
+<div class="categories-bar-wrapper">
+  <div class="categories-bar-header">
+    <span class="categories-label">Focus Areas &amp; Research</span>
+  </div>
+  <div class="categories-bar" role="tablist" aria-label="Filter articles by topic">
+    <button type="button" class="category-tab-btn active" data-filter="all" role="tab" aria-selected="true">
+      <span class="category-tab-dot"></span>
+      <span class="category-tab-text">All</span>
+      <span class="category-tab-count">{{ site.posts.size }}</span>
+    </button>
+    <button type="button" class="category-tab-btn category-pill-embodied-ai" data-filter="embodied-ai" role="tab" aria-selected="false">
+      <span class="category-tab-dot"></span>
+      <span class="category-tab-text">Embodied AI</span>
+    </button>
+    <button type="button" class="category-tab-btn category-pill-robotics" data-filter="robotics" role="tab" aria-selected="false">
+      <span class="category-tab-dot"></span>
+      <span class="category-tab-text">Robotics</span>
+    </button>
+    <button type="button" class="category-tab-btn category-pill-agents" data-filter="agents" role="tab" aria-selected="false">
+      <span class="category-tab-dot"></span>
+      <span class="category-tab-text">Agents</span>
+    </button>
+    <button type="button" class="category-tab-btn category-pill-foundation-models" data-filter="foundation-models" role="tab" aria-selected="false">
+      <span class="category-tab-dot"></span>
+      <span class="category-tab-text">Foundation Models</span>
+    </button>
+    <button type="button" class="category-tab-btn category-pill-reinforcement-learning" data-filter="reinforcement-learning" role="tab" aria-selected="false">
+      <span class="category-tab-dot"></span>
+      <span class="category-tab-text">Reinforcement Learning</span>
+    </button>
+  </div>
+</div>
+
+<section class="posts-section">
+  <div class="section-header">
+    <h2 class="section-title" id="articles-heading">Latest Articles</h2>
+    <span class="section-count" id="posts-count-indicator">{{ site.posts.size }} Posts</span>
+  </div>
+
+  <div class="post-cards-grid" id="posts-grid">
+    {% for post in paginator.posts %}
+      <article class="post-card" 
+               data-particle-attract="card" 
+               data-url="{{ site.baseurl }}{{ post.url }}" 
+               data-categories="{% for category in post.categories %}{{ category | slugize }} {% endfor %}"
+               tabindex="0"
+               role="link"
+               aria-label="{{ post.title }}">
+        <div class="post-card-meta">
+          <div class="post-card-categories">
+            {% for category in post.categories %}
+              <button type="button" 
+                      class="category-chip category-chip-{{ category | slugize }}" 
+                      data-category="{{ category | slugize }}"
+                      title="Filter by {{ category }}">
+                {{ category }}
+              </button>
+            {% endfor %}
+          </div>
+          <div class="post-card-stats">
+            <time datetime="{{ post.date | date_to_xmlschema }}" class="post-card-date">{{ post.date | date: "%b %e, %Y" }}</time>
+            <span class="meta-dot">&middot;</span>
+            {% assign words = post.content | number_of_words %}
+            {% assign read_time = words | divided_by: 200 | at_least: 1 %}
+            <span class="post-card-readtime">{{ read_time }} min read</span>
+          </div>
         </div>
-      </a>
-      <div class="entry">
-        {{ post.excerpt }}
-      </div>
 
-      <a href="{{ site.baseurl }}{{ post.url }}" class="read-more">Read More</a>
-    </article>
-  {% endfor %}
+        <h3 class="post-card-title">
+          <a href="{{ site.baseurl }}{{ post.url }}">{{ post.title }}</a>
+        </h3>
 
-  <!-- pagination -->
-  {% if paginator.total_pages > 1 %}
-  <div class="pagination">
-    {% if paginator.previous_page %}
-      <a href="{{ paginator.previous_page_path | prepend: site.baseurl | replace: '//', '/' }}">&laquo; Prev</a>
-    {% else %}
-      <span>&laquo; Prev</span>
-    {% endif %}
+        {% if post.media_url %}
+        <div class="post-card-media-grid {% if post.media_url_2 %}has-dual-media{% else %}single-media{% endif %}">
+          <div class="post-card-media-item">
+            {% if post.media_type == 'video' %}
+              <video class="post-card-media-asset" autoplay muted loop playsinline preload="metadata">
+                <source src="{{ site.baseurl }}{{ post.media_url }}" type="video/mp4" />
+              </video>
+            {% else %}
+              <img src="{{ site.baseurl }}{{ post.media_url }}" alt="{{ post.media_alt | default: post.title }}" loading="lazy" class="post-card-media-asset" />
+            {% endif %}
+            {% if post.media_label %}
+              <span class="post-card-media-tag">{{ post.media_label }}</span>
+            {% endif %}
+          </div>
 
-    {% for page in (1..paginator.total_pages) %}
-      {% if page == paginator.page %}
-        <span class="webjeda">{{ page }}</span>
-      {% elsif page == 1 %}
-        <a href="{{ '/' | prepend: site.baseurl | replace: '//', '/' }}">{{ page }}</a>
-      {% else %}
-        <a href="{{ site.paginate_path | prepend: site.baseurl | replace: '//', '/' | replace: ':num', page }}">{{ page }}</a>
-      {% endif %}
+          {% if post.media_url_2 %}
+          <div class="post-card-media-item secondary-media">
+            {% if post.media_type_2 == 'video' %}
+              <video class="post-card-media-asset" autoplay muted loop playsinline preload="metadata">
+                <source src="{{ site.baseurl }}{{ post.media_url_2 }}" type="video/mp4" />
+              </video>
+            {% else %}
+              <img src="{{ site.baseurl }}{{ post.media_url_2 }}" alt="{{ post.media_alt_2 | default: post.title }}" loading="lazy" class="post-card-media-asset" />
+            {% endif %}
+            {% if post.media_label_2 %}
+              <span class="post-card-media-tag">{{ post.media_label_2 }}</span>
+            {% endif %}
+          </div>
+          {% endif %}
+        </div>
+        {% endif %}
+
+        <div class="post-card-hook">
+          {% if post.hook %}
+            <p>{{ post.hook }}</p>
+          {% elsif post.description %}
+            <p>{{ post.description }}</p>
+          {% else %}
+            <p>{{ post.content | strip_html | strip_newlines | truncatewords: 34 }}</p>
+          {% endif %}
+        </div>
+
+        <div class="post-card-footer">
+          <a href="{{ site.baseurl }}{{ post.url }}" class="post-card-link">
+            <span>Read article</span>
+            <span class="link-arrow" aria-hidden="true">&rarr;</span>
+          </a>
+        </div>
+      </article>
     {% endfor %}
 
-    {% if paginator.next_page %}
-      <a href="{{ paginator.next_page_path | prepend: site.baseurl | replace: '//', '/' }}">Next &raquo;</a>
-    {% else %}
-      <span>Next &raquo;</span>
-    {% endif %}
+    <!-- Empty state for categories with upcoming research -->
+    <div class="empty-category-card" id="empty-category-card" style="display: none;">
+      <div class="empty-title" id="empty-category-title">Upcoming Article in Progress</div>
+      <p class="empty-desc">Experiments, benchmark logs, and notes for this topic are actively being written. Check back soon or browse all existing publications.</p>
+      <button type="button" class="empty-reset-btn" id="empty-reset-btn">View All Articles</button>
+    </div>
   </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      var tabButtons = document.querySelectorAll('.category-tab-btn');
+      var cards = document.querySelectorAll('.post-card');
+      var emptyCard = document.getElementById('empty-category-card');
+      var emptyTitle = document.getElementById('empty-category-title');
+      var resetBtn = document.getElementById('empty-reset-btn');
+      var countIndicator = document.getElementById('posts-count-indicator');
+      var totalPosts = cards.length;
+
+      function filterCategory(targetCategory) {
+        var visibleCount = 0;
+
+        tabButtons.forEach(function(btn) {
+          var isMatch = btn.getAttribute('data-filter') === targetCategory;
+          btn.classList.toggle('active', isMatch);
+          btn.setAttribute('aria-selected', isMatch ? 'true' : 'false');
+        });
+
+        cards.forEach(function(card) {
+          var cats = card.getAttribute('data-categories') || '';
+          if (targetCategory === 'all' || cats.indexOf(targetCategory) !== -1) {
+            card.classList.remove('hidden-card');
+            visibleCount++;
+          } else {
+            card.classList.add('hidden-card');
+          }
+        });
+
+        if (visibleCount === 0) {
+          if (emptyCard) {
+            emptyCard.style.display = 'block';
+            var activeTab = document.querySelector('.category-tab-btn.active');
+            var label = activeTab ? activeTab.querySelector('.category-tab-text').innerText : 'Selected Topic';
+            if (emptyTitle) emptyTitle.innerText = 'Upcoming Article in ' + label;
+          }
+          if (countIndicator) countIndicator.innerText = '0 Posts';
+        } else {
+          if (emptyCard) emptyCard.style.display = 'none';
+          if (countIndicator) {
+            countIndicator.innerText = visibleCount + (visibleCount === 1 ? ' Post' : ' Posts');
+          }
+        }
+      }
+
+      tabButtons.forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          var cat = btn.getAttribute('data-filter');
+          filterCategory(cat);
+          if (history.replaceState) {
+            history.replaceState(null, null, cat === 'all' ? window.location.pathname : '#' + cat);
+          }
+        });
+      });
+
+      // Filter via category chips on post cards
+      document.querySelectorAll('.post-card-categories .category-chip').forEach(function(chip) {
+        chip.addEventListener('click', function(e) {
+          e.stopPropagation();
+          var cat = chip.getAttribute('data-category');
+          if (cat) {
+            filterCategory(cat);
+            if (history.replaceState) {
+              history.replaceState(null, null, '#' + cat);
+            }
+          }
+        });
+      });
+
+      if (resetBtn) {
+        resetBtn.addEventListener('click', function() {
+          filterCategory('all');
+          if (history.replaceState) {
+            history.replaceState(null, null, window.location.pathname);
+          }
+        });
+      }
+
+      // Check initial hash on page load
+      var hash = window.location.hash.replace('#', '');
+      if (hash) {
+        var matchBtn = document.querySelector('.category-tab-btn[data-filter="' + hash + '"]');
+        if (matchBtn) {
+          filterCategory(hash);
+        }
+      }
+    });
+  </script>
+
+  <!-- Pagination -->
+  {% if paginator.total_pages > 1 %}
+  <nav class="pagination-nav" aria-label="Page navigation">
+    <div class="pagination">
+      {% if paginator.previous_page %}
+        <a href="{{ paginator.previous_page_path | prepend: site.baseurl | replace: '//', '/' }}" class="page-link page-prev">&laquo; Prev</a>
+      {% else %}
+        <span class="page-link disabled">&laquo; Prev</span>
+      {% endif %}
+
+      <div class="page-numbers">
+        {% for page in (1..paginator.total_pages) %}
+          {% if page == paginator.page %}
+            <span class="page-number current">{{ page }}</span>
+          {% elsif page == 1 %}
+            <a href="{{ '/' | prepend: site.baseurl | replace: '//', '/' }}" class="page-number">{{ page }}</a>
+          {% else %}
+            <a href="{{ site.paginate_path | prepend: site.baseurl | replace: '//', '/' | replace: ':num', page }}" class="page-number">{{ page }}</a>
+          {% endif %}
+        {% endfor %}
+      </div>
+
+      {% if paginator.next_page %}
+        <a href="{{ paginator.next_page_path | prepend: site.baseurl | replace: '//', '/' }}" class="page-link page-next">Next &raquo;</a>
+      {% else %}
+        <span class="page-link disabled">Next &raquo;</span>
+      {% endif %}
+    </div>
+  </nav>
   {% endif %}
-</div>
+</section>
