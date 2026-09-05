@@ -6,14 +6,16 @@
   var queued = false;
   var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
-  function within(el, margin) {
-    if (!el.isConnected || el.closest('[hidden], .hidden-card')) return false;
-    var rect = el.getBoundingClientRect();
-    return rect.width > 0 && rect.height > 0 && rect.bottom > -margin &&
+  function measure(el) {
+    return !el.isConnected || el.closest('[hidden], .hidden-card') ? null : el.getBoundingClientRect();
+  }
+  function within(el, margin, rect) {
+    if (rect === undefined) rect = measure(el);
+    return !!rect && rect.width > 0 && rect.height > 0 && rect.bottom > -margin &&
       rect.top < innerHeight + margin && rect.right > 0 && rect.left < innerWidth;
   }
-  function allowed(video, state) {
-    return !document.hidden && (!modal || modal.contains(video)) && within(video, 0) &&
+  function allowed(video, state, rect) {
+    return !document.hidden && (!modal || modal.contains(video)) && within(video, 0, rect) &&
       !state.userPaused && (!reducedMotion.matches || state.manual);
   }
   function pause(video, state) {
@@ -27,9 +29,11 @@
     state.timer = null;
   }
   function action(state, label) {
-    state.button.textContent = label || '';
-    state.button.hidden = !label;
-    state.button.setAttribute('aria-label', (label || 'Play') + ' video');
+    var text = label || '';
+    var aria = (label || 'Play') + ' video';
+    if (state.button.textContent !== text) state.button.textContent = text;
+    if (state.button.hidden !== !label) state.button.hidden = !label;
+    if (state.button.getAttribute('aria-label') !== aria) state.button.setAttribute('aria-label', aria);
   }
   function hydrate(video) {
     if (!video.getAttribute('src') && video.dataset.src) {
@@ -38,8 +42,9 @@
       video.load();
     }
   }
-  function play(video, state, gesture) {
-    if (state.pending || (!gesture && (!allowed(video, state) || state.blocked || state.failed))) return;
+  function play(video, state, gesture, active) {
+    if (active === undefined) active = allowed(video, state);
+    if (state.pending || (!gesture && (!active || state.blocked || state.failed))) return;
     hydrate(video);
     if (!video.getAttribute('src') || !video.paused) return;
     state.pending = true;
@@ -64,8 +69,9 @@
       }
     });
   }
-  function recover(video, state) {
-    if (state.timer || !allowed(video, state) || !navigator.onLine || state.retries >= 2) return;
+  function recover(video, state, active) {
+    if (active === undefined) active = allowed(video, state);
+    if (state.timer || !active || !navigator.onLine || state.retries >= 2) return;
     state.timer = setTimeout(function () {
       state.timer = null;
       if (!players.has(video) || !allowed(video, state) || !navigator.onLine) return;
@@ -161,30 +167,43 @@
   function refresh() {
     queued = false;
     document.querySelectorAll('video[data-media]').forEach(register);
-    document.querySelectorAll('img[data-src]').forEach(function (img) {
+    // Measure once per element before any source, playback, or button changes.
+    // Event handlers and promise continuations still take fresh measurements.
+    var images = Array.from(document.querySelectorAll('img[data-src]')).map(function (img) {
       nearObserver.observe(img);
-      if (within(img, 300)) {
-        if (img.dataset.srcset) {
-          img.srcset = img.dataset.srcset;
-          delete img.dataset.srcset;
-        }
-        img.src = img.dataset.src;
-        delete img.dataset.src;
-        nearObserver.unobserve(img);
-      }
+      return { img: img, near: within(img, 300) };
     });
+    var decisions = [];
     players.forEach(function (state, video) {
-      var active = allowed(video, state);
-      if (!active) {
+      var eligible = !document.hidden && (!modal || modal.contains(video));
+      var rect = eligible ? measure(video) : null;
+      decisions.push({ video: video, state: state, active: allowed(video, state, rect),
+        hydrate: eligible && within(video, 300, rect) &&
+          (!reducedMotion.matches || state.manual) });
+    });
+    images.forEach(function (entry) {
+      if (!entry.near) return;
+      var img = entry.img;
+      if (img.dataset.srcset) {
+        img.srcset = img.dataset.srcset;
+        delete img.dataset.srcset;
+      }
+      img.src = img.dataset.src;
+      delete img.dataset.src;
+      nearObserver.unobserve(img);
+    });
+    decisions.forEach(function (entry) {
+      var video = entry.video;
+      var state = entry.state;
+      if (!entry.active) {
         pause(video, state);
         clearTimer(state);
       }
-      if (!document.hidden && (!modal || modal.contains(video)) && within(video, 300) &&
-          (!reducedMotion.matches || state.manual)) hydrate(video);
+      if (entry.hydrate) hydrate(video);
       if (reducedMotion.matches && !state.manual && !state.failed) action(state, 'Play');
-      if (active) {
-        if (state.failed && state.retryable) recover(video, state);
-        else play(video, state, false);
+      if (entry.active) {
+        if (state.failed && state.retryable) recover(video, state, true);
+        else play(video, state, false, true);
       }
     });
   }

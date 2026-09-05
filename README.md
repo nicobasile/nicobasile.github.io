@@ -76,3 +76,36 @@ node scripts/test_media.cjs /tmp/nico-media-site /tmp/nico-media-before
 Tests cover playback visibility, filters, comparisons, lightbox cleanup, manual pauses, reduced motion, autoplay rejection, HTTP failure retry limits, offline recovery, and responsive images on mobile. Browser-tab visibility is simulated deterministically; real iPhone/Safari testing remains useful for device-specific power-saving policies.
 
 Set `BROWSERS=chromium,firefox` or `BROWSERS=webkit` to run a subset. On macOS 14, WebKit was verified with Playwright 1.51.1 / WebKit 18.4; the newer bundled driver's `PushAPIEnabled` setting is incompatible with its macOS 14 WebKit runtime.
+
+## Particle timing and profiling
+
+Particle physics runs at 60 fixed steps per second, independent of display refresh
+rate. Rendering interpolates particle positions between steps, so 30/60/120 Hz
+changes affect smoothness without changing simulation speed. Dragon idle and
+sleep still begin after 3.8 and 20 seconds without pointer movement. Catch-up is
+limited to six steps (100 ms); excess time after a severe stall is discarded.
+Hidden pages pause, and restoration resets the clock instead of fast-forwarding.
+Reduced-motion changes take effect without reloading.
+
+Run deterministic timing and lifecycle regressions with:
+
+```bash
+node scripts/test_particles.cjs
+```
+
+For a local before/after comparison, build each revision into a separate directory,
+then run the headed Chromium profiler with Playwright available via `NODE_PATH`:
+
+```bash
+node scripts/profile_particles.cjs /path/to/before /path/to/after /path/to/profile-output
+```
+
+The profiler measures particle callback, simulation, and drawing time separately
+from callback intervals, and saves Chrome traces and screenshots for the homepage
+and media-heavy article. It covers motion, 30 seconds stationary, card hover,
+scrolling, background/resume, and temporary blur-off/media-paused comparisons.
+Run without other test browsers competing for resources. Automation may not hide
+a tab when another opens; the profiler reports whether it used a real visibility
+transition or simulated the event. Instrumentation is confined to test pages.
+Chrome power/display scheduling can still cap displayed FPS; low callback work
+with longer callback intervals should not be mistaken for slow physics.

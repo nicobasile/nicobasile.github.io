@@ -18,14 +18,20 @@
   'use strict';
 
   // Check user preference
-  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  let enabled = !prefersReducedMotion;
+  const motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)');
+  let enabled = !motionPreference.matches;
 
   const canvas = document.getElementById('particle-canvas');
   if (!canvas) return;
 
   const ctx = canvas.getContext('2d');
+  if (!ctx) return;
   let animationFrameId = null;
+  const STEP_MS = 1000 / 60;
+  const MAX_STEPS = 6;
+  let lastFrameAt = null;
+  let accumulator = 0;
+  let resizeDirty = true;
   let width = 0;
   let height = 0;
   let dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -251,6 +257,8 @@
       this.baseVx = Math.cos(angle) * speed;
       this.baseVy = Math.sin(angle) * speed;
 
+      this.previousX = this.renderX = this.x;
+      this.previousY = this.renderY = this.y;
       this.vx = this.baseVx;
       this.vy = this.baseVy;
 
@@ -403,10 +411,17 @@
       this.y += this.vy;
 
       // 5. Viewport boundary wrapping
-      if (this.x < -25) this.x = width + 25;
-      if (this.x > width + 25) this.x = -25;
-      if (this.y < -25) this.y = height + 25;
-      if (this.y > height + 25) this.y = -25;
+      // A wrap is a discontinuity: never interpolate across the viewport.
+      if (this.x < -25 || this.x > width + 25) {
+        this.x = this.x < -25 ? width + 25 : -25;
+        this.previousX = this.x;
+        this.previousY = this.y;
+      }
+      if (this.y < -25 || this.y > height + 25) {
+        this.y = this.y < -25 ? height + 25 : -25;
+        this.previousX = this.x;
+        this.previousY = this.y;
+      }
     }
 
     // Vertebrae swell slightly so they read as scale glints along the spine
@@ -424,6 +439,7 @@
   }
 
   let particles = [];
+  let renderOrder = [];
 
   // Dots are grouped by palette colour and quantised opacity, then each group
   // is filled as a single path. Otherwise every particle costs its own
@@ -439,7 +455,7 @@
       const p = particles[i];
       const step = Math.min(ALPHA_STEPS - 1, (p.alpha * ALPHA_STEPS) | 0);
       const batch = dotBatches[p.colorIndex * ALPHA_STEPS + step];
-      batch.push(p.x, p.y, p.radiusNow());
+      batch.push(p.renderX, p.renderY, p.radiusNow());
     }
 
     for (let b = 0; b < dotBatches.length; b++) {
@@ -457,24 +473,72 @@
     }
   }
 
-  function resize() {
-    width = window.innerWidth;
-    height = window.innerHeight;
-    dpr = Math.min(window.devicePixelRatio || 1, 2);
+  function resetDragon() {
+    dragon.members = [];
+    dragon.rig = [];
+    dragon.history = [];
+    dragon.recruitCooldown = dragon.rigCooldown = 0;
+    dragon.activeWeight = dragon.idleWeight = dragon.sleepWeight = 0;
+    dragon.figTheta = dragon.beatPhase = dragon.time = 0;
+    dragon.spinDir = dragon.figDir = 1;
+    dragon.head.x = width / 2;
+    dragon.head.y = height / 2;
+    dragon.head.vx = dragon.head.vy = 0;
+  }
 
-    canvas.width = Math.floor(width * dpr);
-    canvas.height = Math.floor(height * dpr);
+  function resize() {
+    resizeDirty = false;
+    const nextWidth = window.innerWidth;
+    const nextHeight = window.innerHeight;
+    const nextDpr = Math.min(window.devicePixelRatio || 1, 2);
+    if (nextWidth === width && nextHeight === height && nextDpr === dpr) return;
+    width = nextWidth;
+    height = nextHeight;
+    dpr = nextDpr;
+    const pixelWidth = Math.floor(width * dpr);
+    const pixelHeight = Math.floor(height * dpr);
+    if (canvas.width !== pixelWidth) canvas.width = pixelWidth;
+    if (canvas.height !== pixelHeight) canvas.height = pixelHeight;
     canvas.style.width = width + 'px';
     canvas.style.height = height + 'px';
-
-    ctx.scale(dpr, dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     dragonLength = width < 640 ? 14 : 20;
     const targetCount = width < 640 ? 60 : 120;
     if (particles.length !== targetCount) {
-      dragon.members = [];
-      dragon.history = [];
+      resetDragon();
       particles = Array.from({ length: targetCount }, (_, i) => new Particle(i, targetCount));
+      renderOrder = particles.slice();
+      accumulator = 0;
+    }
+    for (const p of particles) {
+      p.previousX = p.renderX = p.x;
+      p.previousY = p.renderY = p.y;
+    }
+  }
+
+  // Physics uses its own sweep. Drawing must never change velocity or simulation order.
+  function applyCardRepulsion() {
+    if (!activeCard) return;
+    particles.sort(sortByX);
+    for (let i = 0; i < particles.length; i++) {
+      const p1 = particles[i];
+      for (let j = i + 1; j < particles.length; j++) {
+        const p2 = particles[j];
+        const dx = p1.x - p2.x;
+        if (-dx >= 24) break;
+        const dy = p1.y - p2.y;
+        const distSq = dx * dx + dy * dy;
+        if (distSq >= 24 * 24 || distSq <= 0.000001) continue;
+        const dist = Math.sqrt(distSq);
+        const strength = (1 - dist / 24) * 0.38;
+        const rx = dx / dist * strength;
+        const ry = dy / dist * strength;
+        p1.vx += rx;
+        p1.vy += ry;
+        p2.vx -= rx;
+        p2.vy -= ry;
+      }
     }
   }
 
@@ -483,6 +547,7 @@
   const linkBuckets = [];
   for (let b = 0; b < LINK_BUCKETS; b++) linkBuckets.push([]);
   const sortByX = (a, b) => a.x - b.x;
+  const sortByRenderX = (a, b) => a.renderX - b.renderX;
 
   function drawConnections() {
     // 1. Recruitment beams. Adjacent vertebrae are no longer stroked here - the
@@ -492,15 +557,15 @@
       for (let i = 1; i < dragon.members.length; i++) {
         const p1 = dragon.members[i - 1];
         const p2 = dragon.members[i];
-        const d = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+        const d = Math.hypot(p2.renderX - p1.renderX, p2.renderY - p1.renderY);
 
         if (d >= 36 && dragon.activeWeight > 0.05) {
           // Being pulled from ambient space toward the dragon: subtle magnetic attraction beam
           const pullBeamAlpha = 0.16 * Math.max(0.1, 1 - d / 300) * dragon.activeWeight;
           if (pullBeamAlpha > 0.01) {
             ctx.beginPath();
-            ctx.moveTo(p1.x, p1.y);
-            ctx.lineTo(p2.x, p2.y);
+            ctx.moveTo(p1.renderX, p1.renderY);
+            ctx.lineTo(p2.renderX, p2.renderY);
             ctx.strokeStyle = '#818cf8';
             ctx.lineWidth = 0.85;
             ctx.globalAlpha = pullBeamAlpha;
@@ -513,40 +578,28 @@
 
     // 2. Pairwise proximity constellation lines (Web mode only).
     //    Flow mode skips the web so the stream reads as sheets, not a mesh.
-    //    Card-hover anti-clump still needs the pair sweep.
-    if (ambientMode !== 'web' && !activeCard) return;
+    if (ambientMode !== 'web') return;
 
     const maxDist = config.maxDistance;
     const maxDistSq = maxDist * maxDist;
     const len = particles.length;
 
-    particles.sort(sortByX);
+    renderOrder.sort(sortByRenderX);
 
     for (let b = 0; b < LINK_BUCKETS; b++) linkBuckets[b].length = 0;
 
     for (let i = 0; i < len; i++) {
-      const p1 = particles[i];
+      const p1 = renderOrder[i];
       for (let j = i + 1; j < len; j++) {
-        const p2 = particles[j];
-        const dx = p1.x - p2.x;
+        const p2 = renderOrder[j];
+        const dx = p1.renderX - p2.renderX;
         if (-dx > maxDist) break; // sorted by x: nothing further right can reach
-        const dy = p1.y - p2.y;
+        const dy = p1.renderY - p2.renderY;
         if (dy > maxDist || dy < -maxDist) continue;
         const distSq = dx * dx + dy * dy;
 
         if (distSq < maxDistSq) {
           const dist = Math.sqrt(distSq);
-
-          // Anti-clumping repulsion: ONLY active when hovering over a blog post card!
-          if (activeCard && dist < 24 && dist > 0.001) {
-            const repelStrength = (1 - dist / 24) * 0.38;
-            const rx = (dx / dist) * repelStrength;
-            const ry = (dy / dist) * repelStrength;
-            p1.vx += rx;
-            p1.vy += ry;
-            p2.vx -= rx;
-            p2.vy -= ry;
-          }
 
           // Links touching the dragon are dimmed hard, otherwise the ambient
           // web smears across the silhouette and hides its shape.
@@ -554,7 +607,7 @@
             const onDragon = p1.isDragonMember || p2.isDragonMember;
             const alpha = (1 - dist / maxDist) * (onDragon ? 0.05 : 0.20);
             const bucket = linkBuckets[Math.min(LINK_BUCKETS - 1, (alpha / 0.20 * LINK_BUCKETS) | 0)];
-            bucket.push(p1.x, p1.y, p2.x, p2.y);
+            bucket.push(p1.renderX, p1.renderY, p2.renderX, p2.renderY);
           }
         }
       }
@@ -584,17 +637,19 @@
   // ------------------------------------------------------------------
 
   // Local frame (position + tangent + normal) at a spine member
-  function memberFrame(i) {
+  function memberFrame(i, rendering = false) {
+    const x = rendering ? 'renderX' : 'x';
+    const y = rendering ? 'renderY' : 'y';
     const mem = dragon.members;
     const idx = Math.max(0, Math.min(mem.length - 1, i));
     const a = mem[Math.max(0, idx - 1)];
     const b = mem[Math.min(mem.length - 1, idx + 1)];
-    let tx = a.x - b.x; // points toward the head
-    let ty = a.y - b.y;
+    let tx = a[x] - b[x]; // points toward the head
+    let ty = a[y] - b[y];
     const m = Math.hypot(tx, ty) || 1;
     tx /= m;
     ty /= m;
-    return { x: mem[idx].x, y: mem[idx].y, tx: tx, ty: ty, nx: -ty, ny: tx, p: mem[idx] };
+    return { x: mem[idx][x], y: mem[idx][y], tx: tx, ty: ty, nx: -ty, ny: tx, p: mem[idx] };
   }
 
   // Where a rig particle should sit right now, in the spine's local frame
@@ -733,7 +788,7 @@
       for (let i = 1; i < mem.length; i++) {
         const a = mem[i - 1];
         const b = mem[i];
-        const d = Math.hypot(b.x - a.x, b.y - a.y);
+        const d = Math.hypot(b.renderX - a.renderX, b.renderY - a.renderY);
         // Segments still being reeled in are left as recruitment beams
         if (d > 34) continue;
 
@@ -743,8 +798,8 @@
         if (alpha < 0.012) continue;
 
         ctx.beginPath();
-        ctx.moveTo(a.x, a.y);
-        ctx.lineTo(b.x, b.y);
+        ctx.moveTo(a.renderX, a.renderY);
+        ctx.lineTo(b.renderX, b.renderY);
         ctx.strokeStyle = pass === 0 ? DRAGON.midColor : '#c7d2fe';
         ctx.lineWidth = (pass === 0 ? 9 : 2.1) * taper;
         ctx.globalAlpha = alpha;
@@ -778,12 +833,12 @@
         // Membrane: a wash that thins out toward the tip, so the wing reads as
         // a veil stretched between the particles rather than a solid panel
         ctx.beginPath();
-        ctx.moveTo(shoulder.x, shoulder.y);
-        ctx.lineTo(mid.p.x, mid.p.y);
-        ctx.lineTo(tip.p.x, tip.p.y);
-        ctx.lineTo(trail.x, trail.y);
+        ctx.moveTo(shoulder.renderX, shoulder.renderY);
+        ctx.lineTo(mid.p.renderX, mid.p.renderY);
+        ctx.lineTo(tip.p.renderX, tip.p.renderY);
+        ctx.lineTo(trail.renderX, trail.renderY);
         ctx.closePath();
-        const veil = ctx.createLinearGradient(shoulder.x, shoulder.y, tip.p.x, tip.p.y);
+        const veil = ctx.createLinearGradient(shoulder.renderX, shoulder.renderY, tip.p.renderX, tip.p.renderY);
         veil.addColorStop(0, 'rgba(129, 140, 248, 0.22)');
         veil.addColorStop(1, 'rgba(56, 189, 248, 0.02)');
         ctx.fillStyle = veil;
@@ -792,19 +847,19 @@
 
         // Bones: shoulder -> elbow -> tip, plus the trailing edge back to the body
         ctx.beginPath();
-        ctx.moveTo(shoulder.x, shoulder.y);
-        ctx.lineTo(mid.p.x, mid.p.y);
-        ctx.lineTo(tip.p.x, tip.p.y);
+        ctx.moveTo(shoulder.renderX, shoulder.renderY);
+        ctx.lineTo(mid.p.renderX, mid.p.renderY);
+        ctx.lineTo(tip.p.renderX, tip.p.renderY);
         ctx.strokeStyle = DRAGON.headColor;
         ctx.lineWidth = 1.3;
         ctx.globalAlpha = 0.5 * wf;
         ctx.stroke();
 
         ctx.beginPath();
-        ctx.moveTo(tip.p.x, tip.p.y);
-        ctx.lineTo(trail.x, trail.y);
-        ctx.moveTo(mid.p.x, mid.p.y);
-        ctx.lineTo(trail.x, trail.y);
+        ctx.moveTo(tip.p.renderX, tip.p.renderY);
+        ctx.lineTo(trail.renderX, trail.renderY);
+        ctx.moveTo(mid.p.renderX, mid.p.renderY);
+        ctx.lineTo(trail.renderX, trail.renderY);
         ctx.strokeStyle = DRAGON.tailColor;
         ctx.lineWidth = 0.8;
         ctx.globalAlpha = 0.3 * wf;
@@ -814,7 +869,7 @@
 
     // ---- Horns + face ----
     const headP = mem[0];
-    const f = memberFrame(0);
+    const f = memberFrame(0, true);
     let dirX = dragon.head.vx;
     let dirY = dragon.head.vy;
     const dm = Math.hypot(dirX, dirY);
@@ -841,8 +896,8 @@
       const hf = (e.settle || 0) * e.p.dragonWeight * A;
       if (hf < 0.02) continue;
       ctx.beginPath();
-      ctx.moveTo(headP.x, headP.y);
-      ctx.lineTo(e.p.x, e.p.y);
+      ctx.moveTo(headP.renderX, headP.renderY);
+      ctx.lineTo(e.p.renderX, e.p.renderY);
       ctx.strokeStyle = DRAGON.crestColor;
       ctx.lineWidth = 1.5;
       ctx.globalAlpha = 0.45 * hf;
@@ -852,8 +907,8 @@
         const jf = hf * (snoutE.settle || 0) * snoutE.p.dragonWeight;
         if (jf > 0.02) {
           ctx.beginPath();
-          ctx.moveTo(e.p.x, e.p.y);
-          ctx.lineTo(snoutE.p.x, snoutE.p.y);
+          ctx.moveTo(e.p.renderX, e.p.renderY);
+          ctx.lineTo(snoutE.p.renderX, snoutE.p.renderY);
           ctx.strokeStyle = '#c7d2fe';
           ctx.lineWidth = 1.2;
           ctx.globalAlpha = 0.4 * jf;
@@ -866,8 +921,8 @@
       const sf = (snoutE.settle || 0) * snoutE.p.dragonWeight * A;
       if (sf > 0.02) {
         ctx.beginPath();
-        ctx.moveTo(headP.x, headP.y);
-        ctx.lineTo(snoutE.p.x, snoutE.p.y);
+        ctx.moveTo(headP.renderX, headP.renderY);
+        ctx.lineTo(snoutE.p.renderX, snoutE.p.renderY);
         ctx.strokeStyle = '#c7d2fe';
         ctx.lineWidth = 2;
         ctx.globalAlpha = 0.5 * sf;
@@ -878,8 +933,8 @@
     // Eyes: two small sparks, only once the head particle has settled
     if (headP.dragonWeight > 0.55) {
       const eyeF = headP.dragonWeight * A;
-      const ex = headP.x + dirX * DRAGON.snoutLen * 0.3;
-      const ey = headP.y + dirY * DRAGON.snoutLen * 0.3;
+      const ex = headP.renderX + dirX * DRAGON.snoutLen * 0.3;
+      const ey = headP.renderY + dirY * DRAGON.snoutLen * 0.3;
       const px = -dirY;
       const py = dirX;
       if (dragon.sleepWeight > 0.55) {
@@ -917,17 +972,17 @@
 
     // ---- Tail: a short forked flick of filament off the last vertebra ----
     const tail = mem[mem.length - 1];
-    const tf = memberFrame(mem.length - 1);
+    const tf = memberFrame(mem.length - 1, true);
     const tailAlpha = tail.dragonWeight * A;
     if (tailAlpha > 0.02) {
       ctx.beginPath();
       for (let sd = -1; sd <= 1; sd += 2) {
-        ctx.moveTo(tail.x, tail.y);
+        ctx.moveTo(tail.renderX, tail.renderY);
         ctx.quadraticCurveTo(
-          tail.x - tf.tx * 9 + tf.nx * sd * 3,
-          tail.y - tf.ty * 9 + tf.ny * sd * 3,
-          tail.x - tf.tx * 15 + tf.nx * sd * 8,
-          tail.y - tf.ty * 15 + tf.ny * sd * 8
+          tail.renderX - tf.tx * 9 + tf.nx * sd * 3,
+          tail.renderY - tf.ty * 9 + tf.ny * sd * 3,
+          tail.renderX - tf.tx * 15 + tf.nx * sd * 8,
+          tail.renderY - tf.ty * 15 + tf.ny * sd * 8
         );
       }
       ctx.strokeStyle = DRAGON.tailColor;
@@ -943,7 +998,7 @@
       for (let z = 0; z < 3; z++) {
         const ph = (dragon.beatPhase * 0.5 + z * 2.1) % 6.3;
         ctx.beginPath();
-        ctx.arc(headP.x + dirX * (8 + ph * 4), headP.y + dirY * (8 + ph * 4) - ph * 3.5, 1.4 + z * 0.35, 0, Math.PI * 2);
+        ctx.arc(headP.renderX + dirX * (8 + ph * 4), headP.renderY + dirY * (8 + ph * 4) - ph * 3.5, 1.4 + z * 0.35, 0, Math.PI * 2);
         ctx.fill();
       }
     }
@@ -952,7 +1007,7 @@
     ctx.globalAlpha = 1;
   }
 
-  function updateDragonHead() {
+  function updateDragonHead(now) {
     dragon.time += 0.016;
 
     if (dragonCanHunt()) {
@@ -962,8 +1017,6 @@
     }
 
     if (dragon.activeWeight <= 0.001) return;
-
-    const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
     // ---- Idle detection: circle -> infinity -> curl up and sleep ----
     const restMs = now - lastMoveAt;
@@ -1301,11 +1354,43 @@
     }
   }
 
-  function loop() {
-    if (!enabled) return;
+  function simulate(now) {
+    for (const p of particles) {
+      p.previousX = p.x;
+      p.previousY = p.y;
+    }
+    updateDragonHead(now);
+    updateDragonMembers();
+    updateRig();
+    applyCardRepulsion();
+    for (let i = 0; i < dragon.members.length; i++) {
+      dragon.members[i].memberIndex = i;
+    }
+    for (const p of particles) p.update();
+  }
 
-    // Card / article rects are only re-measured when they can actually have
-    // moved. Reading them every frame forces a layout flush on each tick.
+  function render(alpha) {
+    for (const p of particles) {
+      p.renderX = p.previousX + (p.x - p.previousX) * alpha;
+      p.renderY = p.previousY + (p.y - p.previousY) * alpha;
+    }
+    ctx.clearRect(0, 0, width, height);
+    drawConnections();
+    if (!isOverArticle()) drawDragon();
+    drawParticles();
+    ctx.globalAlpha = 1;
+  }
+
+  function scheduleFrame() {
+    if (animationFrameId === null && enabled && !document.hidden) {
+      animationFrameId = requestAnimationFrame(loop);
+    }
+  }
+
+  function loop(now) {
+    animationFrameId = null;
+    if (!enabled || document.hidden) return;
+    if (resizeDirty) resize();
     if (activeCard) {
       if (!activeCardRect || cardRectDirty) {
         activeCardRect = activeCard.getBoundingClientRect();
@@ -1316,50 +1401,41 @@
     }
     refreshArticleRect();
 
-    // Update the Cosmic Dragon physics (orbital head pathfinding & dynamic member kinematics)
-    updateDragonHead();
-    updateDragonMembers();
-    updateRig();
-
-    // Stamp spine positions once so drawing can read them in O(1)
-    for (let i = 0; i < dragon.members.length; i++) {
-      dragon.members[i].memberIndex = i;
+    if (lastFrameAt !== null) {
+      // Bound work after a stall and discard old time, rather than spiralling
+      // into unbounded catch-up. Ordinary 30/60/120 Hz all advance at 60 Hz.
+      accumulator = Math.min(accumulator + Math.max(0, now - lastFrameAt), STEP_MS * MAX_STEPS);
+      let steps = 0;
+      while (accumulator + 1e-7 >= STEP_MS && steps < MAX_STEPS) {
+        simulate(now - accumulator + STEP_MS);
+        accumulator = Math.max(0, accumulator - STEP_MS);
+        steps++;
+      }
     }
-
-    ctx.clearRect(0, 0, width, height);
-
-    drawConnections();
-    if (!isOverArticle()) drawDragon();
-
-    for (let i = 0; i < particles.length; i++) {
-      particles[i].update();
-    }
-    drawParticles();
-
-    ctx.globalAlpha = 1.0;
-    animationFrameId = requestAnimationFrame(loop);
+    lastFrameAt = now;
+    render(accumulator / STEP_MS);
+    scheduleFrame();
   }
 
   function start() {
-    if (!animationFrameId && enabled) {
-      resize();
-      refreshArticleRect();
-      const targetCount = width < 640 ? 60 : 120;
-      particles = Array.from({ length: targetCount }, (_, i) => new Particle(i, targetCount));
-      dragon.head.x = width / 2;
-      dragon.head.y = height / 2;
-      animationFrameId = requestAnimationFrame(loop);
+    if (!enabled || document.hidden || animationFrameId !== null) return;
+    lastFrameAt = null;
+    accumulator = 0;
+    resizeDirty = true;
+    cardRectDirty = articleRectDirty = true;
+    for (const p of particles) {
+      p.previousX = p.x;
+      p.previousY = p.y;
     }
+    scheduleFrame();
   }
 
-  function stop() {
-    if (animationFrameId) {
-      cancelAnimationFrame(animationFrameId);
-      animationFrameId = null;
-    }
-    if (ctx) {
-      ctx.clearRect(0, 0, width, height);
-    }
+  function stop(clear = true) {
+    if (animationFrameId !== null) cancelAnimationFrame(animationFrameId);
+    animationFrameId = null;
+    lastFrameAt = null;
+    accumulator = 0;
+    if (clear) ctx.clearRect(0, 0, width, height);
   }
 
   // Pointer & Gravity Listeners
@@ -1443,26 +1519,22 @@
     });
   }
 
-  // Visibility changes (battery savings when switching tabs)
+  // Pause while hidden; resuming never simulates the time spent away.
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) {
-      if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
-        animationFrameId = null;
-      }
-    } else if (enabled) {
-      animationFrameId = requestAnimationFrame(loop);
-    }
+    if (document.hidden) stop(false);
+    else start();
+  });
+  window.addEventListener('pagehide', () => stop(false));
+  window.addEventListener('pageshow', start);
+  motionPreference.addEventListener('change', () => {
+    enabled = !motionPreference.matches;
+    if (enabled) start();
+    else stop();
   });
 
   window.addEventListener('resize', () => {
-    if (enabled) {
-      resize();
-      if (activeCard) {
-        activeCardRect = activeCard.getBoundingClientRect();
-      }
-      articleRectDirty = true;
-    }
+    resizeDirty = true;
+    cardRectDirty = articleRectDirty = true;
   });
 
   window.addEventListener('scroll', () => {
