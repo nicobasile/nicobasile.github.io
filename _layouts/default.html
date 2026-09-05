@@ -33,16 +33,16 @@
               <div class="site-name"><a href="{{ site.baseurl }}/">Nico Basile</a></div>
               <p class="site-description">{{ site.tagline | default: site.description }}</p> 
             </div>
-            </div>
+          </div>
 
           <nav class="site-nav" aria-label="Main navigation">
-              <a href="{{ site.baseurl }}/">Home</a>
+            <a href="{{ site.baseurl }}/">Home</a>
             <a href="{{ site.baseurl }}/about/">About</a>
             <button type="button" id="particle-mode" class="particle-mode" role="switch" aria-checked="false" aria-label="Ambient particle mode">
               <span class="particle-mode-opt is-active" data-mode="web">Web</span>
               <span class="particle-mode-opt" data-mode="flow">Flow</span>
             </button>
-            </nav>
+          </nav>
         </div>
       </header>
 
@@ -400,9 +400,7 @@
               tab.setAttribute('aria-selected', on ? 'true' : 'false');
             });
             panes.forEach(function (pane) {
-              var on = pane.getAttribute('data-pair-pane') === String(index);
-              pane.hidden = !on;
-
+              pane.hidden = pane.getAttribute('data-pair-pane') !== String(index);
             });
             if (window.SiteMedia) window.SiteMedia.refresh();
             if (caption && tabs[index]) {
@@ -473,7 +471,6 @@
                 var source = media.querySelector('source');
                 if (source) clone.dataset.src = source.src;
               }
-
               clone.muted = media.muted;
               clone.loop = true;
               clone.controls = true;
@@ -514,7 +511,6 @@
             });
             host.appendChild(btn);
           }
-          window.__bindVideoZoom = bindVideoZoom;
           article.querySelectorAll('.post-hero-cell video, .post-entry figure video').forEach(bindVideoZoom);
 
           box.querySelector('.lightbox-backdrop').addEventListener('click', close);

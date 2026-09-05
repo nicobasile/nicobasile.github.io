@@ -162,6 +162,7 @@
     queued = false;
     document.querySelectorAll('video[data-media]').forEach(register);
     document.querySelectorAll('img[data-src]').forEach(function (img) {
+      nearObserver.observe(img);
       if (within(img, 300)) {
         if (img.dataset.srcset) {
           img.srcset = img.dataset.srcset;
@@ -169,6 +170,7 @@
         }
         img.src = img.dataset.src;
         delete img.dataset.src;
+        nearObserver.unobserve(img);
       }
     });
     players.forEach(function (state, video) {
@@ -189,8 +191,10 @@
   function schedule() {
     if (!queued) { queued = true; requestAnimationFrame(refresh); }
   }
-  var nearObserver = new IntersectionObserver(schedule, { rootMargin: '300px 0px' });
-  var visibleObserver = new IntersectionObserver(schedule, { threshold: 0 });
+  // Refresh at preload/play boundaries, rather than scanning on every scroll frame.
+  // A small positive threshold also catches entry after an edge-only intersection.
+  var nearObserver = new IntersectionObserver(schedule, { rootMargin: '300px 0px', threshold: 0.001 });
+  var visibleObserver = new IntersectionObserver(schedule, { threshold: 0.001 });
   window.SiteMedia = {
     refresh: refresh,
     setModal: function (stage) { modal = stage; refresh(); },
@@ -212,8 +216,6 @@
   document.addEventListener('visibilitychange', refresh);
   window.addEventListener('pageshow', refresh);
   window.addEventListener('online', refresh);
-  window.addEventListener('resize', schedule);
-  window.addEventListener('scroll', schedule, { passive: true });
   reducedMotion.addEventListener('change', refresh);
   // Deferred scripts run at interactive: let initial category filters settle first.
   if (document.readyState !== 'complete') document.addEventListener('DOMContentLoaded', refresh);

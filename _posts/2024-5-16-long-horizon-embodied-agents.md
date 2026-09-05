@@ -22,19 +22,15 @@ hero_caption: 'Credit: <a href="#ref-voyager">NVIDIA Voyager</a>'
 hero:
   - url: /videos/base.mp4
     type: video
-    label: Build base
     alt: "Autonomous embodied agent skill execution in Minecraft"
   - url: /videos/cactus.mp4
     type: video
-    label: Gather cactus
     alt: "Autonomous farm harvesting task"
   - url: /videos/gold.mp4
     type: video
-    label: Mine gold
     alt: "Gold collection task"
   - url: /videos/pig.mp4
     type: video
-    label: Hunt pig
     alt: "Livestock task"
 ---
 
