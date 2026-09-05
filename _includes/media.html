@@ -1,0 +1,13 @@
+{%- assign asset = site.data.media[include.url] -%}
+{%- assign extension = include.url | split: '.' | last | downcase -%}
+{%- if include.type == 'video' or extension == 'mp4' -%}
+  {%- assign poster = include.poster | default: asset.poster -%}
+  <video data-media data-src="{{ include.url | relative_url }}" muted loop playsinline preload="none"{% if include.controls %} controls{% endif %}{% if poster %} poster="{{ poster | relative_url }}"{% endif %}{% if asset %} width="{{ asset.width }}" height="{{ asset.height }}"{% endif %} class="{{ include.class }}" aria-label="{{ include.alt | escape }}"></video>
+{%- else -%}
+  {%- capture responsive_sources -%}
+    {%- for variant in asset.variants -%}
+      {{ variant.url | relative_url }} {{ variant.width }}w{% unless forloop.last %}, {% endunless %}
+    {%- endfor -%}
+  {%- endcapture -%}
+  <img {% if include.deferred %}data-src{% else %}src{% endif %}="{{ include.url | relative_url }}" data-original="{{ include.url | relative_url }}"{% if asset.variants %} {% if include.deferred %}data-srcset{% else %}srcset{% endif %}="{{ responsive_sources }}" sizes="{{ include.sizes | default: '(max-width: 700px) 92vw, 800px' }}"{% endif %}{% if asset %} width="{{ asset.width }}" height="{{ asset.height }}"{% endif %} alt="{{ include.alt | escape }}" class="{{ include.class }}" decoding="async" loading="{% if include.eager %}eager{% else %}lazy{% endif %}" />
+{%- endif -%}

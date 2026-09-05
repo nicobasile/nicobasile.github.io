@@ -85,13 +85,8 @@ layout: default
         {% if post.media_url %}
         <div class="post-card-media-grid {% if post.media_url_2 %}has-dual-media{% else %}single-media{% endif %}">
           <div class="post-card-media-item">
-            {% if post.media_type == 'video' %}
-              <video class="post-card-media-asset" autoplay muted loop playsinline preload="metadata">
-                <source src="{{ site.baseurl }}{{ post.media_url }}" type="video/mp4" />
-              </video>
-            {% else %}
-              <img src="{{ site.baseurl }}{{ post.media_url }}" alt="{{ post.media_alt | default: post.title }}" loading="lazy" class="post-card-media-asset" />
-            {% endif %}
+            {% assign card_alt = post.media_alt | default: post.title %}
+            {% include media.html url=post.media_url type=post.media_type poster=post.media_poster alt=card_alt class="post-card-media-asset" sizes="(max-width: 700px) 46vw, 400px" %}
             {% if post.media_label %}
               <span class="post-card-media-tag">{{ post.media_label }}</span>
             {% endif %}
@@ -99,13 +94,8 @@ layout: default
 
           {% if post.media_url_2 %}
           <div class="post-card-media-item secondary-media">
-            {% if post.media_type_2 == 'video' %}
-              <video class="post-card-media-asset" autoplay muted loop playsinline preload="metadata">
-                <source src="{{ site.baseurl }}{{ post.media_url_2 }}" type="video/mp4" />
-              </video>
-            {% else %}
-              <img src="{{ site.baseurl }}{{ post.media_url_2 }}" alt="{{ post.media_alt_2 | default: post.title }}" loading="lazy" class="post-card-media-asset" />
-            {% endif %}
+            {% assign card_alt = post.media_alt_2 | default: post.title %}
+            {% include media.html url=post.media_url_2 type=post.media_type_2 poster=post.media_poster_2 alt=card_alt class="post-card-media-asset" sizes="(max-width: 700px) 46vw, 400px" %}
             {% if post.media_label_2 %}
               <span class="post-card-media-tag">{{ post.media_label_2 }}</span>
             {% endif %}
@@ -167,8 +157,11 @@ layout: default
             visibleCount++;
           } else {
             card.classList.add('hidden-card');
+
           }
         });
+
+        if (window.SiteMedia) window.SiteMedia.refresh();
 
         if (visibleCount === 0) {
           if (emptyCard) {

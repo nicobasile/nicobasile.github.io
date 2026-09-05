@@ -78,18 +78,15 @@ layout: default
             </div>
             {% for pair in page.hero_compare %}
               {% assign pair_start = forloop.index0 | times: pair_size %}
+              {% assign eager = forloop.first %}
               <div class="post-hero-grid count-{{ pair_size }} hero-pair"
                 data-pair-pane="{{ forloop.index0 }}"
                 {% unless forloop.first %}hidden{% endunless %}>
                 {% for item in page.hero offset: pair_start limit: pair_size %}
                   <div class="post-hero-cell">
-                    {% if item.type == 'video' %}
-                      <video autoplay muted loop playsinline controls preload="metadata">
-                        <source src="{{ site.baseurl }}{{ item.url }}" type="video/mp4" />
-                      </video>
-                    {% else %}
-                      <img src="{{ site.baseurl }}{{ item.url }}" alt="{{ item.alt | default: page.title }}" />
-                    {% endif %}
+                    {% assign hero_alt = item.alt | default: page.title %}
+                    {% assign deferred = true %}{% if eager %}{% assign deferred = false %}{% endif %}
+                    {% include media.html url=item.url type=item.type poster=item.poster alt=hero_alt controls=true eager=eager deferred=deferred %}
                   </div>
                 {% endfor %}
               </div>
@@ -101,13 +98,8 @@ layout: default
             <div class="post-hero-grid count-{{ page.hero.size }}">
               {% for item in page.hero %}
                 <div class="post-hero-cell">
-                  {% if item.type == 'video' %}
-                    <video autoplay muted loop playsinline controls preload="metadata">
-                      <source src="{{ site.baseurl }}{{ item.url }}" type="video/mp4" />
-                    </video>
-                  {% else %}
-                    <img src="{{ site.baseurl }}{{ item.url }}" alt="{{ item.alt | default: page.title }}" />
-                  {% endif %}
+                  {% assign hero_alt = item.alt | default: page.title %}
+                  {% include media.html url=item.url type=item.type poster=item.poster alt=hero_alt controls=true eager=true %}
                 </div>
               {% endfor %}
             </div>

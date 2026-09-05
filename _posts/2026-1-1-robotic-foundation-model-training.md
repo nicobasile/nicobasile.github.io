@@ -5,11 +5,11 @@ categories: [embodied-ai, robotics]
 author: Nicolas Basile
 description: "When does simulation data stop helping and start erasing real physics? Rebalancing real, augmented, and simulated data when fine-tuning a VLA on my SO-101 raised pick-and-place success from 8% to 84%, without collecting more data. This post covers a six-way ablation of real / aug / sim batch composition."
 hook: "<strong>When does simulation data stop helping and start erasing real physics?</strong> Rebalancing real, augmented, and simulated data when fine-tuning a VLA on my SO-101 raised pick-and-place success from <strong>8% to 84%</strong>, without collecting more data. This post covers a six-way ablation of real / aug / sim batch composition."
-media_type: image
-media_url: /videos/side-1.gif
+media_type: video
+media_url: /videos/side-1.mp4
 media_alt: "Exp. E side view: confident pick-and-place after golden-ratio mixing"
-media_url_2: /videos/top-1.gif
-media_type_2: image
+media_url_2: /videos/top-1.mp4
+media_type_2: video
 media_alt_2: "Exp. E top view: confident pick-and-place after golden-ratio mixing"
 findings:
   - stat: "8% → 84%"
@@ -24,17 +24,17 @@ hero_compare:
   - label: "Weaker mix"
     caption: "<strong>Exp. D:</strong> jittery, uncertain motion from a weaker mix."
 hero:
-  - url: /videos/side-1.gif
-    type: image
+  - url: /videos/side-1.mp4
+    type: video
     alt: "Exp. E side view: confident pick-and-place after golden-ratio mixing"
-  - url: /videos/top-1.gif
-    type: image
+  - url: /videos/top-1.mp4
+    type: video
     alt: "Exp. E top view: confident pick-and-place after golden-ratio mixing"
-  - url: /videos/side-2.gif
-    type: image
+  - url: /videos/side-2.mp4
+    type: video
     alt: "Exp. D side view: jittery, uncertain motion from a weaker mixing run"
-  - url: /videos/top-2.gif
-    type: image
+  - url: /videos/top-2.mp4
+    type: video
     alt: "Exp. D top view: jittery, uncertain motion from a weaker mixing run"
 ---
 
@@ -60,7 +60,7 @@ To address the latency and fidelity requirements of high-frequency control, Smol
 3.  **Flow-Matching Action Head:** These features are projected into a lightweight MLP-Transformer that predicts continuous joint trajectories via **Conditional Flow Matching (CFM)**.
 
 <figure>
-  <img src="/images/model_architecture.jpg" alt="SmolVLA Architecture" />
+  {% include media.html url="/images/model_architecture.jpg" alt="SmolVLA Architecture" %}
   <figcaption>SmolVLA consumes multi-view RGB and language via SigLIP and SmolLM2, fusing them with a projected state token to predict continuous actions via a flow-matching head.</figcaption>
 </figure>
 
@@ -91,7 +91,7 @@ The combination of the lightweight architecture and CFM enables **Receding Horiz
 * **Latency Masking:** Because of layer skipping, inference takes only ~100ms on an NVIDIA 3060 Ti, well within the 1.67s execution window. This allows the robot to move seamlessly without the "stutter" typical of synchronous VLM policies.
 
 <figure>
-  <img src="/images/action_chunks.jpg" alt="Receding-Horizon Control" />
+  {% include media.html url="/images/action_chunks.jpg" alt="Receding-Horizon Control" %}
 </figure>
 
 A Note on Action Space: **Joint Space vs. Cartesian Poses**
@@ -123,7 +123,7 @@ The final dataset consisted of three distinct buckets:
 - **Augmented Real Data (N=150):** Generated via segmentation-based background replacement <sup>[[2]](#ref-datasocks)</sup> and **Kornia** <sup>[[3]](#ref-kornia)</sup> visual transforms. This forces the vision encoder to decouple kinematic signatures from visual framing.
 
 <figure>
-  <img src="/videos/augmented_synthetic_data.gif" alt="Augmented Synthetic Data" />
+  {% include media.html url="/videos/augmented_synthetic_data.mp4" alt="Augmented synthetic training data" controls=true %}
   <figcaption>Example of the augmented real data. Credit: <a href="#ref-datasocks">DataSocks</a>.</figcaption>
 </figure>
 
@@ -200,7 +200,7 @@ For these benchmarks, **Success** is defined as grasping the object and placing 
 </div>
 
 <figure>
-  <img src="/images/result_chart.png" alt="Result Chart" />
+  {% include media.html url="/images/result_chart.png" alt="Result Chart" %}
 </figure>
 
 ### Fine-Tuning Strategy
@@ -228,7 +228,7 @@ The current policy predicts **Joint Positions** (see Architecture for the IK-fai
     Switching to EE prediction hides joint-limit constraints. Will the VLA learn to output only those poses that are solvable, or will it hallucinate "valid" 3D coordinates that force the IK solver into singularities or self-collisions?
 
 <figure>
-  <img src="/images/ee_vs_joint.jpg" alt="End-effector poses versus joint-space actions" />
+  {% include media.html url="/images/ee_vs_joint.jpg" alt="End-effector poses versus joint-space actions" %}
 </figure>
 
 ### Scalability and Multi-Task Generalization

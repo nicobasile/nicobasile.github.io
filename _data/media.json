@@ -1,0 +1,223 @@
+{
+  "/images/404.jpg": {
+    "width": 896,
+    "height": 896
+  },
+  "/images/action_chunks.jpg": {
+    "width": 1024,
+    "height": 559,
+    "variants": [
+      {
+        "url": "/images/responsive/action_chunks-320.webp",
+        "width": 320
+      },
+      {
+        "url": "/images/responsive/action_chunks-640.webp",
+        "width": 640
+      },
+      {
+        "url": "/images/responsive/action_chunks-960.webp",
+        "width": 960
+      },
+      {
+        "url": "/images/responsive/action_chunks-1024.webp",
+        "width": 1024
+      }
+    ]
+  },
+  "/images/data_sampling.jpg": {
+    "width": 1024,
+    "height": 559,
+    "variants": [
+      {
+        "url": "/images/responsive/data_sampling-320.webp",
+        "width": 320
+      },
+      {
+        "url": "/images/responsive/data_sampling-640.webp",
+        "width": 640
+      },
+      {
+        "url": "/images/responsive/data_sampling-960.webp",
+        "width": 960
+      },
+      {
+        "url": "/images/responsive/data_sampling-1024.webp",
+        "width": 1024
+      }
+    ]
+  },
+  "/images/ee_vs_joint.jpg": {
+    "width": 1024,
+    "height": 559,
+    "variants": [
+      {
+        "url": "/images/responsive/ee_vs_joint-320.webp",
+        "width": 320
+      },
+      {
+        "url": "/images/responsive/ee_vs_joint-640.webp",
+        "width": 640
+      },
+      {
+        "url": "/images/responsive/ee_vs_joint-960.webp",
+        "width": 960
+      },
+      {
+        "url": "/images/responsive/ee_vs_joint-1024.webp",
+        "width": 1024
+      }
+    ]
+  },
+  "/images/favicon-512x512.png": {
+    "width": 512,
+    "height": 512
+  },
+  "/images/galaxy.jpg": {
+    "width": 1920,
+    "height": 1200,
+    "variants": [
+      {
+        "url": "/images/responsive/galaxy-320.webp",
+        "width": 320
+      },
+      {
+        "url": "/images/responsive/galaxy-640.webp",
+        "width": 640
+      },
+      {
+        "url": "/images/responsive/galaxy-960.webp",
+        "width": 960
+      },
+      {
+        "url": "/images/responsive/galaxy-1920.webp",
+        "width": 1920
+      }
+    ]
+  },
+  "/images/model_architecture.jpg": {
+    "width": 1024,
+    "height": 559,
+    "variants": [
+      {
+        "url": "/images/responsive/model_architecture-320.webp",
+        "width": 320
+      },
+      {
+        "url": "/images/responsive/model_architecture-640.webp",
+        "width": 640
+      },
+      {
+        "url": "/images/responsive/model_architecture-960.webp",
+        "width": 960
+      },
+      {
+        "url": "/images/responsive/model_architecture-1024.webp",
+        "width": 1024
+      }
+    ]
+  },
+  "/images/result_chart.png": {
+    "width": 1200,
+    "height": 800,
+    "variants": [
+      {
+        "url": "/images/responsive/result_chart-320.webp",
+        "width": 320
+      },
+      {
+        "url": "/images/responsive/result_chart-640.webp",
+        "width": 640
+      },
+      {
+        "url": "/images/responsive/result_chart-960.webp",
+        "width": 960
+      },
+      {
+        "url": "/images/responsive/result_chart-1200.webp",
+        "width": 1200
+      }
+    ]
+  },
+  "/images/robotic_gripper_neural_net.jpg": {
+    "width": 1024,
+    "height": 1024,
+    "variants": [
+      {
+        "url": "/images/responsive/robotic_gripper_neural_net-320.webp",
+        "width": 320
+      },
+      {
+        "url": "/images/responsive/robotic_gripper_neural_net-640.webp",
+        "width": 640
+      },
+      {
+        "url": "/images/responsive/robotic_gripper_neural_net-960.webp",
+        "width": 960
+      },
+      {
+        "url": "/images/responsive/robotic_gripper_neural_net-1024.webp",
+        "width": 1024
+      }
+    ]
+  },
+  "/images/robotic_gripper_neural_net_no_bg.png": {
+    "width": 500,
+    "height": 500,
+    "variants": [
+      {
+        "url": "/images/responsive/robotic_gripper_neural_net_no_bg-320.webp",
+        "width": 320
+      },
+      {
+        "url": "/images/responsive/robotic_gripper_neural_net_no_bg-500.webp",
+        "width": 500
+      }
+    ]
+  },
+  "/videos/augmented_synthetic_data.mp4": {
+    "width": 480,
+    "height": 368,
+    "poster": "/videos/posters/augmented_synthetic_data.webp"
+  },
+  "/videos/base.mp4": {
+    "width": 960,
+    "height": 540,
+    "poster": "/videos/posters/base.webp"
+  },
+  "/videos/cactus.mp4": {
+    "width": 960,
+    "height": 540,
+    "poster": "/videos/posters/cactus.webp"
+  },
+  "/videos/gold.mp4": {
+    "width": 960,
+    "height": 540,
+    "poster": "/videos/posters/gold.webp"
+  },
+  "/videos/pig.mp4": {
+    "width": 960,
+    "height": 540,
+    "poster": "/videos/posters/pig.webp"
+  },
+  "/videos/side-1.mp4": {
+    "width": 640,
+    "height": 480,
+    "poster": "/videos/posters/side-1.webp"
+  },
+  "/videos/side-2.mp4": {
+    "width": 640,
+    "height": 480,
+    "poster": "/videos/posters/side-2.webp"
+  },
+  "/videos/top-1.mp4": {
+    "width": 640,
+    "height": 480,
+    "poster": "/videos/posters/top-1.webp"
+  },
+  "/videos/top-2.mp4": {
+    "width": 640,
+    "height": 480,
+    "poster": "/videos/posters/top-2.webp"
+  }
+}

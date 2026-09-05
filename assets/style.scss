@@ -1396,6 +1396,54 @@ body.is-lightbox {
     border-radius: 0;
     display: block;
   }
+
+  video {
+    position: absolute;
+    inset: 0;
+  }
+}
+
+.hero-swap {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  background: #151529;
+  cursor: pointer;
+  position: absolute;
+  inset: 0;
+  display: block;
+
+  &:focus-visible {
+    outline: 2px solid #818cf8;
+    outline-offset: -2px;
+  }
+
+  &:hover .hero-swap-hint,
+  &:focus-visible .hero-swap-hint {
+    color: #e2e8f0;
+    border-color: rgba(99, 102, 241, 0.45);
+  }
+}
+
+.hero-swap-hint {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  font-family: $font-mono;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(9, 13, 22, 0.85);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: #94a3b8;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  letter-spacing: -0.01em;
+  pointer-events: none;
 }
 
 .post-hero figcaption {
@@ -2007,3 +2055,26 @@ p code, li code, td code {
 // Syntax highlighting and icons
 @import "darcula";
 @import "svg-icons";
+
+// Shared media controls preserve the player and poster when playback needs help.
+.media-host { position: relative; }
+.media-action {
+  position: absolute;
+  z-index: 3;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  padding: 8px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 999px;
+  background: rgba(9, 13, 22, 0.92);
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  &:focus-visible { outline: 2px solid #818cf8; outline-offset: 3px; }
+  &[hidden] { display: none; }
+}
+.post-entry figure > video[data-media] { display: block; width: 100%; height: auto; }
+
+.post-entry img[width][height], .page-entry img[width][height] { height: auto; }

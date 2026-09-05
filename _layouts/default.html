@@ -14,6 +14,7 @@
 
     <meta name="theme-color" content="#090d16">
     <link rel="icon" type="image/png" sizes="512x512" href="{{ site.baseurl }}/images/favicon-512x512.png">
+    <script src="{{ "/assets/media.js" | relative_url }}" defer></script>
     {% include analytics_head.html %}
   </head>
 
@@ -26,22 +27,22 @@
         <div class="container masthead-inner">
           <div class="masthead-brand">
             <a href="{{ site.baseurl }}/" class="site-avatar" aria-label="Homepage">
-              <img src="{{ site.baseurl }}{{ site.avatar }}" alt="Nico Basile" />
+              {% include media.html url=site.avatar alt="Nico Basile" eager=true sizes="48px" %}
             </a>
             <div class="site-info">
               <div class="site-name"><a href="{{ site.baseurl }}/">Nico Basile</a></div>
               <p class="site-description">{{ site.tagline | default: site.description }}</p> 
             </div>
-          </div>
+            </div>
 
           <nav class="site-nav" aria-label="Main navigation">
-            <a href="{{ site.baseurl }}/">Home</a>
+              <a href="{{ site.baseurl }}/">Home</a>
             <a href="{{ site.baseurl }}/about/">About</a>
             <button type="button" id="particle-mode" class="particle-mode" role="switch" aria-checked="false" aria-label="Ambient particle mode">
               <span class="particle-mode-opt is-active" data-mode="web">Web</span>
               <span class="particle-mode-opt" data-mode="flow">Flow</span>
             </button>
-          </nav>
+            </nav>
         </div>
       </header>
 
@@ -391,6 +392,7 @@
           var tabs = hero.querySelectorAll('[data-pair-tab]');
           var panes = hero.querySelectorAll('[data-pair-pane]');
           var caption = hero.querySelector('.hero-compare-caption');
+
           function select(index) {
             tabs.forEach(function (tab, i) {
               var on = i === index;
@@ -398,8 +400,11 @@
               tab.setAttribute('aria-selected', on ? 'true' : 'false');
             });
             panes.forEach(function (pane) {
-              pane.hidden = pane.getAttribute('data-pair-pane') !== String(index);
+              var on = pane.getAttribute('data-pair-pane') === String(index);
+              pane.hidden = !on;
+
             });
+            if (window.SiteMedia) window.SiteMedia.refresh();
             if (caption && tabs[index]) {
               caption.innerHTML = tabs[index].getAttribute('data-caption') || '';
             }
@@ -435,9 +440,11 @@
 
           function close() {
             if (box.hidden) return;
+            if (window.SiteMedia) window.SiteMedia.release(stage);
             stage.innerHTML = '';
             box.hidden = true;
             document.body.classList.remove('is-lightbox');
+            if (window.SiteMedia) window.SiteMedia.setModal(null);
             if (lastFocus && lastFocus.focus) lastFocus.focus();
             lastFocus = null;
           }
@@ -457,19 +464,23 @@
             var clone;
             if (media.tagName === 'VIDEO') {
               clone = document.createElement('video');
-              clone.src = media.currentSrc || media.src;
-              if (!clone.src) {
+              clone.dataset.src = media.currentSrc || media.getAttribute('src') || media.dataset.src || '';
+              clone.setAttribute('data-media', '');
+              clone.poster = media.poster;
+              clone.preload = 'none';
+              clone.setAttribute('aria-label', media.getAttribute('aria-label') || 'Expanded video');
+              if (!clone.dataset.src) {
                 var source = media.querySelector('source');
-                if (source) clone.src = source.src;
+                if (source) clone.dataset.src = source.src;
               }
-              clone.autoplay = true;
+
               clone.muted = media.muted;
               clone.loop = true;
               clone.controls = true;
               clone.playsInline = true;
             } else {
               clone = document.createElement('img');
-              clone.src = media.currentSrc || media.src;
+              clone.src = media.dataset.original || media.currentSrc || media.src;
               clone.alt = media.alt || '';
             }
             stage.appendChild(clone);
@@ -478,15 +489,16 @@
             caption.hidden = !html;
             box.hidden = false;
             document.body.classList.add('is-lightbox');
+            if (window.SiteMedia) window.SiteMedia.setModal(stage);
             closeBtn.focus();
           }
 
-          article.querySelectorAll('.post-hero-cell img, .post-entry figure img').forEach(function (img) {
+          article.querySelectorAll('.post-hero-cell > img, .post-entry figure img').forEach(function (img) {
             img.classList.add('is-zoomable');
             img.addEventListener('click', function () { open(img, img); });
           });
 
-          article.querySelectorAll('.post-hero-cell video, .post-entry figure video').forEach(function (video) {
+          function bindVideoZoom(video) {
             var host = video.closest('.post-hero-cell') || video.parentElement;
             if (!host || host.querySelector('.media-zoom')) return;
             host.classList.add('has-zoom');
@@ -501,7 +513,9 @@
               open(video, btn);
             });
             host.appendChild(btn);
-          });
+          }
+          window.__bindVideoZoom = bindVideoZoom;
+          article.querySelectorAll('.post-hero-cell video, .post-entry figure video').forEach(bindVideoZoom);
 
           box.querySelector('.lightbox-backdrop').addEventListener('click', close);
           closeBtn.addEventListener('click', close);
@@ -517,7 +531,7 @@
         document.querySelectorAll('.post-card').forEach(function (card) {
           card.addEventListener('click', function (e) {
             // Exclude clicks on category chips, category buttons, or their child elements
-            if (e.target.closest('.category-chip') || e.target.closest('.category-pill') || e.target.closest('.post-card-categories')) {
+            if (e.target.closest('button, video, input') || e.target.closest('.category-chip') || e.target.closest('.category-pill') || e.target.closest('.post-card-categories')) {
               return;
             }
             var url = card.getAttribute('data-url');
@@ -533,7 +547,7 @@
           // Keyboard accessibility: Enter or Space opens the card
           card.addEventListener('keydown', function (e) {
             if (e.key === 'Enter' || e.key === ' ') {
-              if (e.target.closest('.category-chip') || e.target.closest('.category-pill')) {
+              if (e.target.closest('button, video, input') || e.target.closest('.category-chip') || e.target.closest('.category-pill')) {
                 return;
               }
               e.preventDefault();
