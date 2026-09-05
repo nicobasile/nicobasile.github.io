@@ -1,0 +1,196 @@
+// Warm paper, graphite, and a single ink-green link color.
+$paper: #f8f7f4;
+$ink: #242622;
+$muted: #62655d;
+$rule: #d8dad2;
+$serif: Georgia, "Times New Roman", serif;
+
+.particle-canvas { opacity: 0.48; }
+.wrapper-masthead {
+  position: relative;
+  background: transparent;
+  border: 0;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.masthead-inner { padding-top: 28px; padding-bottom: 28px; }
+.site-avatar img, .site-avatar:hover img {
+  width: 46px; height: 46px; border: 1px solid $rule;
+  box-shadow: none; transform: none;
+}
+.site-name { font-size: 18px; font-weight: 600; }
+.site-description { font-size: 12px; }
+.site-nav { gap: 24px; }
+.wrapper-main { padding-top: 32px; }
+.home-hero { padding: 25px 0 48px; margin-bottom: 24px; }
+.hero-title, .post-title, .page-title {
+  font-family: $serif; font-weight: 400; letter-spacing: -0.035em;
+  font-size: 46px; line-height: 1.13;
+}
+.hero-title { margin-bottom: 24px; }
+.hero-subtitle { max-width: 610px; font-size: 17px; line-height: 1.8; color: #484c44; }
+.section-header { margin-bottom: 0; border-color: $rule; }
+.section-title { font-size: 12px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.12em; }
+.section-count { font-size: 12px; }
+.post-cards-grid { gap: 0; }
+.post-card, .post-card:hover {
+  background: transparent; border: 0; border-bottom: 1px solid $rule;
+  border-radius: 0; padding: 30px 0 36px; box-shadow: none;
+  transform: none; backdrop-filter: none; -webkit-backdrop-filter: none;
+}
+.post-card:focus-visible { outline: 2px solid $accent-cyan; outline-offset: 6px; }
+.post-card-title { font-family: $serif; font-size: 29px; line-height: 1.22; font-weight: 400; letter-spacing: -0.02em; max-width: 680px; }
+.post-card-meta { margin-bottom: 14px; }
+.category-chip[class], .category-chip[class]:hover {
+  background: none; border: 0; padding: 0; color: $muted;
+  border-radius: 0; font-weight: 400; font-size: 11px; letter-spacing: 0.04em;
+  box-shadow: none; cursor: default;
+}
+.post-card-categories, .post-tags { gap: 12px; }
+.post-card-media-grid { margin: 22px 0; }
+.post-card-media-grid.has-dual-media .post-card-media-item,
+.post-card-media-grid.single-media, .post-hero-cell,
+.post-entry img, .post-entry video, .page-entry img { border-radius: 3px; border-color: $rule; box-shadow: none; }
+.post-card:hover .post-card-media-asset { transform: none; }
+.post-card-hook { color: #484c44; font-size: 15px; line-height: 1.75; }
+.post-card-hook strong { color: inherit; font-weight: 500; }
+.post-card-link { font-size: 13px; font-weight: 500; }
+.post.detailed, .page.detailed {
+  background: $paper; border: 0; border-radius: 0; box-shadow: none;
+  backdrop-filter: none; -webkit-backdrop-filter: none; padding: 20px 40px 44px;
+}
+.post-toc { background: $paper; border: 0; border-bottom: 1px solid $rule; border-radius: 0; }
+.post-toc .post-toc-now, .post-toc .post-toc-list .is-active a,
+.post-toc .post-toc-list .is-h3.is-active a { color: $accent-cyan; border-left-color: $accent-cyan; }
+.post-back-link { font-size: 12px; }
+.post-lede { color: #484c44; font-size: 17px; line-height: 1.75; }
+.post-lede strong { font-weight: 500; }
+.findings-strip { gap: 22px; border-top: 1px solid $rule; border-bottom: 1px solid $rule; padding: 18px 0; }
+.findings-cell { background: none; border: 0; border-radius: 0; padding: 0; }
+.findings-cell dt { font-size: 20px; font-weight: 500; }
+.hero-compare-switch { border: 0; border-bottom: 1px solid $rule; border-radius: 0; background: none; padding: 0; gap: 20px; }
+.hero-compare-tab { border-radius: 0; padding: 8px 0; border-bottom: 2px solid transparent; font-weight: 400; }
+.hero-compare-tab.is-active { color: $ink; background: none; border-bottom-color: $ink; }
+.hero-compare-tab:hover { color: $ink; }
+.post-entry, .page-entry {
+  font-family: $serif; color: #30312e; font-size: 19px; line-height: 1.8;
+  ul, ol { color: inherit; }
+  h2 { font-size: 29px; font-weight: 400; border: 0; padding: 0; }
+  h3 { font-size: 22px; font-weight: 400; }
+  a:hover, .heading-anchor:hover { color: #1f443a; }
+  blockquote { background: #eeefe9; border-left: 2px solid #a3ada0; border-radius: 0; color: #484c44; }
+  table { background: transparent; border: 0; border-radius: 0; font-family: $font-sans; }
+  table th { background: #eeefe9; border-color: $rule; }
+  table td { color: #30312e; border-color: $rule; }
+  table tr:nth-child(even) { background: #f1f2ed; }
+  table tr.is-best { background: #e5ebe2; }
+  table tr.is-best td { color: $ink; }
+  figcaption, .table-note, .ref-list, .ci { font-family: $font-sans; }
+  .ref-list li { border-color: $rule; }
+  hr { border-color: $rule; }
+}
+p code, li code, td code { color: #365b53; background: #eceee7; border-color: $rule; }
+.cite-card { background: $paper; border-color: $rule; border-radius: 3px; box-shadow: 0 5px 20px rgba(30,35,25,0.12); }
+.cite-card-links a { color: $accent-cyan; }
+.share-link, .share-link:hover, .post-nav-card, .post-nav-card:hover {
+  background: transparent; border-color: $rule; border-radius: 0; color: $accent-cyan;
+}
+.wrapper-footer { background: transparent; }
+.footer-content { flex-direction: row; justify-content: space-between; }
+.footer-links a { filter: grayscale(1); }
+::selection { color: $ink; background: #dbe4d6; }
+:focus-visible { outline: 2px solid $accent-cyan; outline-offset: 4px; }
+@media (max-width: 640px) {
+  .masthead-inner, .masthead-brand { flex-direction: row; text-align: left; }
+  .masthead-inner { gap: 12px; padding-top: 20px; padding-bottom: 16px; }
+  .masthead-brand { gap: 10px; }
+  .site-info, .site-name { text-align: left; }
+  .site-name { font-size: 16px; }
+  .site-description { display: none; }
+  .site-avatar img { width: 34px; height: 34px; }
+  .site-nav { gap: 16px; }
+  .site-nav a { font-size: 13px; }
+  .wrapper-main { padding-top: 14px; }
+  .home-hero { padding: 24px 0 28px; }
+  .hero-title, .post-title, .page-title { font-size: 36px; }
+  .hero-subtitle { font-size: 16px; }
+  .post-card { padding: 26px 0; }
+  .post-card-title { font-size: 26px; }
+  .post.detailed, .page.detailed { padding: 16px 0 32px; }
+  .post-entry, .page-entry { font-size: 18px; }
+  .findings-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  .findings-cell dt { font-size: 17px; }
+  .findings-cell dd { font-size: 11px; }
+  .footer-content { flex-direction: column; }
+}
+
+// Keep footage at its native ratio, including annotations at the edges.
+.post-card-media-grid.has-dual-media,
+.post-card-media-grid.single-media { height: auto; align-items: start; background: transparent; }
+.post-card-media-grid.has-dual-media .post-card-media-item,
+.post-card-media-grid.single-media .post-card-media-item {
+  height: auto; background: transparent; border: 0;
+}
+.post-card-media-asset { height: auto; object-fit: contain; }
+.post-hero-grid { align-items: start; }
+.post-hero-cell { aspect-ratio: auto; background: transparent; border: 0; }
+.post-hero-cell img, .post-hero-cell video {
+  position: static; height: auto; max-height: none;
+}
+
+// Robot crop controls. Set these on either wrapper (or an individual video cell).
+.crop-robot {
+  --crop-ratio: 16 / 9;
+  --crop-position: 150% 60%;
+  --crop-zoom: 1.05;
+}
+
+// A fixed clipping window; video dimensions cannot expand it.
+.post-card-media-grid.crop-robot .post-card-media-item,
+.post-hero-cell.crop-robot {
+  position: relative;
+  aspect-ratio: var(--crop-ratio);
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  clip-path: inset(0 round 3px);
+}
+
+.post-card-media-grid.crop-robot .post-card-media-asset,
+.post-hero-cell.crop-robot video {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: var(--crop-position);
+  transform: scale(var(--crop-zoom));
+  transform-origin: var(--crop-position);
+}
+
+// Fill matching inline frames; fullscreen retains the encoded GIF framing.
+.post-card-media-grid.frame-matched .post-card-media-item,
+.post-hero-cell.frame-matched {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: $paper;
+}
+.post-card-media-grid.frame-matched .post-card-media-asset,
+.post-hero-cell.frame-matched video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  transform: none;
+}
+
+.post-hero-cell.frame-matched video:fullscreen {
+  object-fit: contain;
+  background: #000;
+}

@@ -5,10 +5,11 @@ categories: [embodied-ai, robotics]
 author: Nicolas Basile
 description: "When does simulation data stop helping and start erasing real physics? Rebalancing real, augmented, and simulated data when fine-tuning a VLA on my SO-101 raised pick-and-place success from 8% to 84%, without collecting more data. This post covers a six-way ablation of real / aug / sim batch composition."
 hook: "<strong>When does simulation data stop helping and start erasing real physics?</strong> Rebalancing real, augmented, and simulated data when fine-tuning a VLA on my SO-101 raised pick-and-place success from <strong>8% to 84%</strong>, without collecting more data. This post covers a six-way ablation of real / aug / sim batch composition."
+media_frame: matched
 media_type: video
-media_url: /videos/side-1.mp4
+media_url: /videos/side-1-gif-edit.mp4
 media_alt: "Exp. E side view: confident pick-and-place after golden-ratio mixing"
-media_url_2: /videos/top-1.mp4
+media_url_2: /videos/top-1-gif-edit.mp4
 media_type_2: video
 media_alt_2: "Exp. E top view: confident pick-and-place after golden-ratio mixing"
 findings:
@@ -24,16 +25,16 @@ hero_compare:
   - label: "Weaker mix"
     caption: "<strong>Exp. D:</strong> jittery, uncertain motion from a weaker mix."
 hero:
-  - url: /videos/side-1.mp4
+  - url: /videos/side-1-gif-edit.mp4
     type: video
     alt: "Exp. E side view: confident pick-and-place after golden-ratio mixing"
-  - url: /videos/top-1.mp4
+  - url: /videos/top-1-gif-edit.mp4
     type: video
     alt: "Exp. E top view: confident pick-and-place after golden-ratio mixing"
-  - url: /videos/side-2.mp4
+  - url: /videos/side-2-gif-edit.mp4
     type: video
     alt: "Exp. D side view: jittery, uncertain motion from a weaker mixing run"
-  - url: /videos/top-2.mp4
+  - url: /videos/top-2-gif-edit.mp4
     type: video
     alt: "Exp. D top view: jittery, uncertain motion from a weaker mixing run"
 ---

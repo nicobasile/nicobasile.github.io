@@ -56,7 +56,7 @@ layout: default
         <div class="post-tags">
           {% assign categories = page.categories %}
           {% for category in categories %}
-            <a href="{{ site.baseurl }}/#{{ category | slugize }}" class="category-chip category-chip-{{ category | slugize }}" data-category="{{ category | slugize }}">{{ category }}</a>
+            <span class="category-chip">{{ category | replace: "-", " " }}</span>
           {% endfor %}
         </div>
       </div>
@@ -83,7 +83,7 @@ layout: default
                 data-pair-pane="{{ forloop.index0 }}"
                 {% unless forloop.first %}hidden{% endunless %}>
                 {% for item in page.hero offset: pair_start limit: pair_size %}
-                  <div class="post-hero-cell">
+                  <div class="post-hero-cell{% if page.media_frame %} frame-{{ page.media_frame }}{% endif %}{% if page.media_crop %} crop-{{ page.media_crop }}{% endif %}">
                     {% assign hero_alt = item.alt | default: page.title %}
                     {% assign deferred = true %}{% if eager %}{% assign deferred = false %}{% endif %}
                     {% include media.html url=item.url type=item.type poster=item.poster alt=hero_alt controls=true eager=eager deferred=deferred %}
@@ -97,7 +97,7 @@ layout: default
           <figure class="post-hero">
             <div class="post-hero-grid count-{{ page.hero.size }}">
               {% for item in page.hero %}
-                <div class="post-hero-cell">
+                <div class="post-hero-cell{% if page.media_frame %} frame-{{ page.media_frame }}{% endif %}{% if page.media_crop %} crop-{{ page.media_crop }}{% endif %}">
                   {% assign hero_alt = item.alt | default: page.title %}
                   {% include media.html url=item.url type=item.type poster=item.poster alt=hero_alt controls=true eager=true %}
                 </div>

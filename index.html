@@ -3,49 +3,15 @@ layout: default
 ---
 
 <div class="home-hero">
-  <h1 class="hero-title">Ten thousand steps, then a breakthrough.</h1>
+  <h1 class="hero-title">Notes on learning and intelligence.</h1>
   <p class="hero-subtitle">
-    Compounding, in machines and in people. Personal research on intelligent systems, embodied AI, and accelerator infrastructure.
+    I’m Nico, an ML engineer working on TPUs at Google. My personal research explores how intelligent agents learn and act, through robotics and simulated environments.
   </p>
-</div>
-
-<!-- Focus Areas / Categories Bar listed side by side with distinct colors and topics of interest -->
-<div class="categories-bar-wrapper">
-  <div class="categories-bar-header">
-    <span class="categories-label">Focus Areas &amp; Research</span>
-  </div>
-  <div class="categories-bar" role="tablist" aria-label="Filter articles by topic">
-    <button type="button" class="category-tab-btn active" data-filter="all" role="tab" aria-selected="true">
-      <span class="category-tab-dot"></span>
-      <span class="category-tab-text">All</span>
-      <span class="category-tab-count">{{ site.posts.size }}</span>
-    </button>
-    <button type="button" class="category-tab-btn category-pill-embodied-ai" data-filter="embodied-ai" role="tab" aria-selected="false">
-      <span class="category-tab-dot"></span>
-      <span class="category-tab-text">Embodied AI</span>
-    </button>
-    <button type="button" class="category-tab-btn category-pill-robotics" data-filter="robotics" role="tab" aria-selected="false">
-      <span class="category-tab-dot"></span>
-      <span class="category-tab-text">Robotics</span>
-    </button>
-    <button type="button" class="category-tab-btn category-pill-agents" data-filter="agents" role="tab" aria-selected="false">
-      <span class="category-tab-dot"></span>
-      <span class="category-tab-text">Agents</span>
-    </button>
-    <button type="button" class="category-tab-btn category-pill-foundation-models" data-filter="foundation-models" role="tab" aria-selected="false">
-      <span class="category-tab-dot"></span>
-      <span class="category-tab-text">Foundation Models</span>
-    </button>
-    <button type="button" class="category-tab-btn category-pill-reinforcement-learning" data-filter="reinforcement-learning" role="tab" aria-selected="false">
-      <span class="category-tab-dot"></span>
-      <span class="category-tab-text">Reinforcement Learning</span>
-    </button>
-  </div>
 </div>
 
 <section class="posts-section">
   <div class="section-header">
-    <h2 class="section-title" id="articles-heading">Latest Articles</h2>
+    <h2 class="section-title" id="articles-heading">Selected work</h2>
     <span class="section-count" id="posts-count-indicator">{{ site.posts.size }} {% if site.posts.size == 1 %}article{% else %}articles{% endif %}</span>
   </div>
 
@@ -61,12 +27,9 @@ layout: default
         <div class="post-card-meta">
           <div class="post-card-categories">
             {% for category in post.categories %}
-              <button type="button" 
-                      class="category-chip category-chip-{{ category | slugize }}" 
-                      data-category="{{ category | slugize }}"
-                      title="Filter by {{ category }}">
-                {{ category }}
-              </button>
+              <span class="category-chip">
+                {{ category | replace: "-", " " }}
+              </span>
             {% endfor %}
           </div>
           <div class="post-card-stats">
@@ -83,7 +46,7 @@ layout: default
         </h3>
 
         {% if post.media_url %}
-        <div class="post-card-media-grid {% if post.media_url_2 %}has-dual-media{% else %}single-media{% endif %}">
+        <div class="post-card-media-grid{% if post.media_frame %} frame-{{ post.media_frame }}{% endif %}{% if post.media_crop %} crop-{{ post.media_crop }}{% endif %} {% if post.media_url_2 %}has-dual-media{% else %}single-media{% endif %}">
           <div class="post-card-media-item">
             {% assign card_alt = post.media_alt | default: post.title %}
             {% include media.html url=post.media_url type=post.media_type poster=post.media_poster alt=card_alt class="post-card-media-asset" sizes="(max-width: 700px) 46vw, 400px" %}
@@ -123,104 +86,7 @@ layout: default
       </article>
     {% endfor %}
 
-    <!-- Empty state for categories with upcoming research -->
-    <div class="empty-category-card" id="empty-category-card" style="display: none;">
-      <div class="empty-title" id="empty-category-title">Upcoming Article in Progress</div>
-      <p class="empty-desc">Experiments, benchmark logs, and notes for this topic are actively being written. Check back soon or browse all existing publications.</p>
-      <button type="button" class="empty-reset-btn" id="empty-reset-btn">View All Articles</button>
-    </div>
   </div>
-
-  <script>
-    document.addEventListener('DOMContentLoaded', function() {
-      var tabButtons = document.querySelectorAll('.category-tab-btn');
-      var cards = document.querySelectorAll('.post-card');
-      var emptyCard = document.getElementById('empty-category-card');
-      var emptyTitle = document.getElementById('empty-category-title');
-      var resetBtn = document.getElementById('empty-reset-btn');
-      var countIndicator = document.getElementById('posts-count-indicator');
-      var totalPosts = cards.length;
-
-      function filterCategory(targetCategory) {
-        var visibleCount = 0;
-
-        tabButtons.forEach(function(btn) {
-          var isMatch = btn.getAttribute('data-filter') === targetCategory;
-          btn.classList.toggle('active', isMatch);
-          btn.setAttribute('aria-selected', isMatch ? 'true' : 'false');
-        });
-
-        cards.forEach(function(card) {
-          var cats = card.getAttribute('data-categories') || '';
-          if (targetCategory === 'all' || cats.indexOf(targetCategory) !== -1) {
-            card.classList.remove('hidden-card');
-            visibleCount++;
-          } else {
-            card.classList.add('hidden-card');
-          }
-        });
-
-        if (window.SiteMedia) window.SiteMedia.refresh();
-
-        if (visibleCount === 0) {
-          if (emptyCard) {
-            emptyCard.style.display = 'block';
-            var activeTab = document.querySelector('.category-tab-btn.active');
-            var label = activeTab ? activeTab.querySelector('.category-tab-text').innerText : 'Selected Topic';
-            if (emptyTitle) emptyTitle.innerText = 'Upcoming Article in ' + label;
-          }
-          if (countIndicator) countIndicator.innerText = '0 articles';
-        } else {
-          if (emptyCard) emptyCard.style.display = 'none';
-          if (countIndicator) {
-            countIndicator.innerText = visibleCount + (visibleCount === 1 ? ' article' : ' articles');
-          }
-        }
-      }
-
-      tabButtons.forEach(function(btn) {
-        btn.addEventListener('click', function() {
-          var cat = btn.getAttribute('data-filter');
-          filterCategory(cat);
-          if (history.replaceState) {
-            history.replaceState(null, null, cat === 'all' ? window.location.pathname : '#' + cat);
-          }
-        });
-      });
-
-      // Filter via category chips on post cards
-      document.querySelectorAll('.post-card-categories .category-chip').forEach(function(chip) {
-        chip.addEventListener('click', function(e) {
-          e.stopPropagation();
-          var cat = chip.getAttribute('data-category');
-          if (cat) {
-            filterCategory(cat);
-            if (history.replaceState) {
-              history.replaceState(null, null, '#' + cat);
-            }
-          }
-        });
-      });
-
-      if (resetBtn) {
-        resetBtn.addEventListener('click', function() {
-          filterCategory('all');
-          if (history.replaceState) {
-            history.replaceState(null, null, window.location.pathname);
-          }
-        });
-      }
-
-      // Check initial hash on page load
-      var hash = window.location.hash.replace('#', '');
-      if (hash) {
-        var matchBtn = document.querySelector('.category-tab-btn[data-filter="' + hash + '"]');
-        if (matchBtn) {
-          filterCategory(hash);
-        }
-      }
-    });
-  </script>
 
   <!-- Pagination -->
   {% if paginator.total_pages > 1 %}

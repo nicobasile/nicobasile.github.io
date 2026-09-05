@@ -200,20 +200,40 @@
     "height": 540,
     "poster": "/videos/posters/pig.webp"
   },
+  "/videos/side-1-gif-edit.mp4": {
+    "width": 570,
+    "height": 394,
+    "poster": "/videos/posters/side-1-gif-edit.webp"
+  },
   "/videos/side-1.mp4": {
     "width": 640,
     "height": 480,
     "poster": "/videos/posters/side-1.webp"
+  },
+  "/videos/side-2-gif-edit.mp4": {
+    "width": 624,
+    "height": 396,
+    "poster": "/videos/posters/side-2-gif-edit.webp"
   },
   "/videos/side-2.mp4": {
     "width": 640,
     "height": 480,
     "poster": "/videos/posters/side-2.webp"
   },
+  "/videos/top-1-gif-edit.mp4": {
+    "width": 398,
+    "height": 320,
+    "poster": "/videos/posters/top-1-gif-edit.webp"
+  },
   "/videos/top-1.mp4": {
     "width": 640,
     "height": 480,
     "poster": "/videos/posters/top-1.webp"
+  },
+  "/videos/top-2-gif-edit.mp4": {
+    "width": 586,
+    "height": 418,
+    "poster": "/videos/posters/top-2-gif-edit.webp"
   },
   "/videos/top-2.mp4": {
     "width": 640,

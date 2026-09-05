@@ -36,8 +36,8 @@
   let height = 0;
   let dpr = Math.min(window.devicePixelRatio || 1, 2);
 
-  // Palette: Subtle cosmic luminescence
-  const PALETTE = ['#38bdf8', '#818cf8', '#c084fc', '#f472b6', '#60a5fa'];
+  // Graphite tones on the warm paper background.
+  const PALETTE = ['#62625d', '#74746e', '#454540', '#555550', '#85857e'];
   const TWO_PI = Math.PI * 2;
 
   // Ambient field mode: 'web' = Brownian + constellation links (default),
@@ -209,10 +209,10 @@
   };
 
   const DRAGON = {
-    headColor: '#c084fc',
-    midColor: '#818cf8',
-    tailColor: '#38bdf8',
-    crestColor: '#f472b6',
+    headColor: '#454540',
+    midColor: '#74746e',
+    tailColor: '#62625d',
+    crestColor: '#555550',
     snoutLen: 20
   };
 
@@ -566,7 +566,7 @@
             ctx.beginPath();
             ctx.moveTo(p1.renderX, p1.renderY);
             ctx.lineTo(p2.renderX, p2.renderY);
-            ctx.strokeStyle = '#818cf8';
+            ctx.strokeStyle = '#74746e';
             ctx.lineWidth = 0.85;
             ctx.globalAlpha = pullBeamAlpha;
             ctx.stroke();
@@ -614,7 +614,7 @@
     }
 
     ctx.lineWidth = 0.75;
-    ctx.strokeStyle = '#818cf8';
+    ctx.strokeStyle = '#74746e';
     for (let b = 0; b < LINK_BUCKETS; b++) {
       const seg = linkBuckets[b];
       if (seg.length === 0) continue;
@@ -800,7 +800,7 @@
         ctx.beginPath();
         ctx.moveTo(a.renderX, a.renderY);
         ctx.lineTo(b.renderX, b.renderY);
-        ctx.strokeStyle = pass === 0 ? DRAGON.midColor : '#c7d2fe';
+        ctx.strokeStyle = pass === 0 ? DRAGON.midColor : '#52524d';
         ctx.lineWidth = (pass === 0 ? 9 : 2.1) * taper;
         ctx.globalAlpha = alpha;
         ctx.stroke();
@@ -839,8 +839,8 @@
         ctx.lineTo(trail.renderX, trail.renderY);
         ctx.closePath();
         const veil = ctx.createLinearGradient(shoulder.renderX, shoulder.renderY, tip.p.renderX, tip.p.renderY);
-        veil.addColorStop(0, 'rgba(129, 140, 248, 0.22)');
-        veil.addColorStop(1, 'rgba(56, 189, 248, 0.02)');
+        veil.addColorStop(0, 'rgba(80, 80, 74, 0.12)');
+        veil.addColorStop(1, 'rgba(80, 80, 74, 0.01)');
         ctx.fillStyle = veil;
         ctx.globalAlpha = 0.75 * wf;
         ctx.fill();
@@ -909,7 +909,7 @@
           ctx.beginPath();
           ctx.moveTo(e.p.renderX, e.p.renderY);
           ctx.lineTo(snoutE.p.renderX, snoutE.p.renderY);
-          ctx.strokeStyle = '#c7d2fe';
+          ctx.strokeStyle = '#52524d';
           ctx.lineWidth = 1.2;
           ctx.globalAlpha = 0.4 * jf;
           ctx.stroke();
@@ -923,50 +923,10 @@
         ctx.beginPath();
         ctx.moveTo(headP.renderX, headP.renderY);
         ctx.lineTo(snoutE.p.renderX, snoutE.p.renderY);
-        ctx.strokeStyle = '#c7d2fe';
+        ctx.strokeStyle = '#52524d';
         ctx.lineWidth = 2;
         ctx.globalAlpha = 0.5 * sf;
         ctx.stroke();
-      }
-    }
-
-    // Eyes: two small sparks, only once the head particle has settled
-    if (headP.dragonWeight > 0.55) {
-      const eyeF = headP.dragonWeight * A;
-      const ex = headP.renderX + dirX * DRAGON.snoutLen * 0.3;
-      const ey = headP.renderY + dirY * DRAGON.snoutLen * 0.3;
-      const px = -dirY;
-      const py = dirX;
-      if (dragon.sleepWeight > 0.55) {
-        ctx.beginPath();
-        for (let sd = -1; sd <= 1; sd += 2) {
-          ctx.moveTo(ex + px * sd * 1.4, ey + py * sd * 1.4);
-          ctx.lineTo(ex + px * sd * 3.6, ey + py * sd * 3.6);
-        }
-        ctx.strokeStyle = DRAGON.midColor;
-        ctx.lineWidth = 1.1;
-        ctx.globalAlpha = 0.5 * eyeF;
-        ctx.stroke();
-      } else {
-        // Halo drawn as a second wider arc rather than shadowBlur, which costs
-        // a full blur pass on the canvas every frame.
-        ctx.globalAlpha = 0.22 * (0.9 - dragon.sleepWeight) * eyeF;
-        ctx.fillStyle = '#38bdf8';
-        ctx.beginPath();
-        for (let sd = -1; sd <= 1; sd += 2) {
-          ctx.moveTo(ex + px * sd * 2.5 + 4, ey + py * sd * 2.5);
-          ctx.arc(ex + px * sd * 2.5, ey + py * sd * 2.5, 4, 0, Math.PI * 2);
-        }
-        ctx.fill();
-
-        ctx.globalAlpha = (0.9 - dragon.sleepWeight) * eyeF;
-        ctx.fillStyle = '#f8fafc';
-        ctx.beginPath();
-        for (let sd = -1; sd <= 1; sd += 2) {
-          ctx.moveTo(ex + px * sd * 2.5 + 1.3, ey + py * sd * 2.5);
-          ctx.arc(ex + px * sd * 2.5, ey + py * sd * 2.5, 1.3, 0, Math.PI * 2);
-        }
-        ctx.fill();
       }
     }
 

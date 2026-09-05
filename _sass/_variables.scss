@@ -3,7 +3,7 @@
 //
 
 // Backgrounds & Surfaces
-$bg-base: #090d16;
+$bg-base: #f8f7f4;
 $bg-surface: rgba(255, 255, 255, 0.03);
 $bg-surface-hover: rgba(255, 255, 255, 0.06);
 $bg-card: rgba(15, 23, 42, 0.55);
@@ -11,19 +11,19 @@ $bg-card-hover: rgba(22, 33, 62, 0.7);
 $bg-code: #0b1120;
 
 // Borders
-$border-subtle: rgba(255, 255, 255, 0.08);
+$border-subtle: rgba(42, 46, 39, 0.15);
 $border-hover: rgba(99, 102, 241, 0.35);
 $border-strong: rgba(255, 255, 255, 0.16);
 
 // Typography / Text Colors
-$text-primary: #f1f5f9;
-$text-secondary: #94a3b8;
-$text-muted: #64748b;
-$text-heading: #f8fafc;
+$text-primary: #30312e;
+$text-secondary: #595c56;
+$text-muted: #6c6e67;
+$text-heading: #242622;
 
 // Accents
-$accent-primary: #6366f1;
-$accent-cyan: #38bdf8;
+$accent-primary: #365b53;
+$accent-cyan: #365b53;
 $accent-purple: #c084fc;
 $accent-pink: #f472b6;
 $accent-glow: rgba(99, 102, 241, 0.25);
@@ -34,7 +34,7 @@ $black: #000;
 $darkerGray: $text-heading;
 $darkGray: $text-primary;
 $gray: $text-secondary;
-$lightGray: rgba(255, 255, 255, 0.08);
+$lightGray: rgba(42, 46, 39, 0.15);
 $white: $text-primary;
 
 // Font stacks

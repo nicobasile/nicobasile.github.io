@@ -2035,3 +2035,6 @@ p code, li code, td code {
 .post-entry figure > video[data-media] { display: block; width: 100%; height: auto; }
 
 .post-entry img[width][height], .page-entry img[width][height] { height: auto; }
+
+// Restrained research journal presentation.
+@import "editorial";
