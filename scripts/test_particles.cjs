@@ -22,6 +22,7 @@ function engine(mode = 'web', reduced = false, readingRect = null) {
   const ctx = new Proxy({}, { get: (o, key) => o[key] || (key === 'createLinearGradient'
     ? () => ({ addColorStop() {} }) : () => {}), set: (o, k, v) => (o[k] = v, true) });
   const canvas = { getContext: () => ctx, style: {} };
+  const dragonCanvas = { getContext: () => ctx, style: {}, width:0, height:0 };
   for (const key of ['width', 'height']) {
     let value = 0;
     Object.defineProperty(canvas, key, { get: () => value, set: v => { value = v; allocations++; } });
@@ -31,7 +32,7 @@ function engine(mode = 'web', reduced = false, readingRect = null) {
     measurements++; return { left: 400, right: 800, top: 250, bottom: 600 };
   } });
   const document = events({ hidden: false, readyState: 'complete',
-    getElementById: id => id === 'particle-canvas' ? canvas : null,
+    getElementById: id => id === 'particle-canvas' ? canvas : id === 'dragon-canvas' ? dragonCanvas : null,
     querySelector: selector => readingRect && selector.startsWith('article.') ? { getBoundingClientRect: () => readingRect } : null, querySelectorAll: selector => selector === '.post-card' ? [card] : [] });
   const window = events({ innerWidth: 1440, innerHeight: 900, devicePixelRatio: 2, matchMedia: () => preference });
   const sandbox = { Math: math, performance: { now: () => now }, window, document,
@@ -51,7 +52,7 @@ function engine(mode = 'web', reduced = false, readingRect = null) {
     globalThis.testRender = render;
     globalThis.setMode = setAmbientMode;
     function init() {`), sandbox);
-  return { window, document, preference, card, ctx, inspect: sandbox.inspect, render: sandbox.testRender, headStep: sandbox.testHead, steer: sandbox.testSteer, wall: sandbox.testWall, boundary: sandbox.testBoundary, route: sandbox.testRoute, crosses: sandbox.testCrosses, setMode: sandbox.setMode,
+  return { window, document, preference, card, ctx, dragonCanvas, inspect: sandbox.inspect, render: sandbox.testRender, headStep: sandbox.testHead, steer: sandbox.testSteer, wall: sandbox.testWall, boundary: sandbox.testBoundary, route: sandbox.testRoute, crosses: sandbox.testCrosses, setMode: sandbox.setMode,
     pending: () => callbacks.size, allocations: () => allocations, measurements: () => measurements,
     frame(time) { now = time; const jobs = [...callbacks.values()]; callbacks.clear(); jobs.forEach(fn => fn(now)); },
     move(x = 1000, y = 450) { window.emit('pointermove', { clientX: x, clientY: y }); } };
@@ -235,6 +236,7 @@ for(let i=0;i<180;i++) {
 }
 assert.ok(turning.head.vx < -1.8,'completes the reversal');
 const wallTurn=engine('web',false,{left:350,right:1090,top:160,bottom:740,width:740});wallTurn.frame(0);
+wallTurn.move(100,450);wallTurn.move(500,450);
 const approaching={x:300,y:450,vx:2,vy:0.5};wallTurn.wall(approaching);
 assert.ok(approaching.vx>0&&approaching.vx<2,'turn begins before touching the wall');
 assert.ok(approaching.vy>0.5,'inward motion bends along the wall');
@@ -338,9 +340,35 @@ for (const mode of ['web','flow']) for (const viewport of [1440,390]) {
   assert.equal(e.inspect().dragon.activeWeight,0,'first pointer inside article does not summon dragon');
   assert.equal(e.inspect().dragon.members.length,0);
   assert.equal(e.inspect().articleFlight,null);
-  e.move(rect.left-10,450);e.frame(1517);
+  e.move(rect.left-15,450);e.frame(1517);
   assert.ok(e.inspect().dragon.activeWeight>0,'leaving article enables normal dragon');
   e.move((rect.left+rect.right)/2,450);e.frame(1534);
   assert.ok(e.inspect().articleFlight,'subsequent article entry keeps the gutter flight');
 }
 console.log('PASS article reload placement and initial-hover dragon suppression on desktop/mobile in both modes');
+
+// Article overlap is controlled by the cursor, with hysteresis and gentle exit.
+const overlap=engine('web',false,{left:400,right:1000,top:200,bottom:700,width:600});overlap.frame(0);
+overlap.move(390,450);
+const oh=overlap.inspect().dragon.head;
+Object.assign(oh,{x:500,y:450,vx:1,vy:0});overlap.boundary(oh);
+assert.equal(oh.x,500,'head may overlap while cursor is outside');
+const member=overlap.inspect().particles[0];Object.assign(member,{x:510,y:450,isDragonMember:true});
+overlap.move(398,450);overlap.boundary(oh);overlap.boundary(member);
+assert.equal(oh.x,500,'entering does not project overlapping head');assert.equal(member.x,510,'entering does not project body');
+overlap.headStep(20);const flight=overlap.inspect().articleFlight;
+assert.equal(flight.points[0].x,500,'sweep starts at actual head position');
+overlap.move(389,450);overlap.headStep(30);assert.equal(overlap.inspect().articleFlight,flight,'hysteresis retains flight');
+overlap.move(385,450);overlap.headStep(40);assert.equal(overlap.inspect().articleFlight,null,'clearing hysteresis restores flight');
+console.log('PASS unrestricted overlap, unprojected entry and pointer hysteresis');
+
+for(const [x,y,vx,vy,mx,my] of [[390,450,2,0,390,450],[1010,450,-2,0,1010,450],[700,190,0,2,700,190],[700,710,0,-2,700,710]]) {
+  const wall=engine('web',false,{left:400,right:1000,top:200,bottom:700,width:600});
+  const free=engine();wall.frame(0);free.frame(0);wall.move(mx,my);
+  for(const e of [wall,free])Object.assign(e.inspect().dragon.head,{x,y,vx,vy});
+  for(let i=0;i<90;i++){wall.steer(vx,vy,.075,2.4);free.steer(vx,vy,.075,2.4);}
+  assert.deepEqual(JSON.parse(JSON.stringify(wall.inspect().dragon.head)),JSON.parse(JSON.stringify(free.inspect().dragon.head)),'unrestricted steering identical across article edge');
+  assert.equal(wall.dragonCanvas.width,2880);assert.equal(wall.dragonCanvas.height,1800);
+  wall.window.innerWidth=390;wall.window.emit('resize');wall.frame(20);assert.equal(wall.dragonCanvas.width,780);
+}
+console.log('PASS all-edge unrestricted steering and foreground canvas resize');

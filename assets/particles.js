@@ -25,7 +25,10 @@
   if (!canvas) return;
 
   const ctx = canvas.getContext('2d');
+  const dragonCanvas = document.getElementById('dragon-canvas');
+  const dragonCtx = dragonCanvas ? dragonCanvas.getContext('2d') : ctx;
   if (!ctx) return;
+  const dustCtx = ctx;
   let animationFrameId = null;
   const STEP_MS = 1000 / 90;
   const MAX_STEPS = 6;
@@ -88,6 +91,33 @@
   let readingDragonArmed = !isReadingPage;
   let articleRect = null;
   let articleRectDirty = true;
+  let articleHover = false;
+  let lastArticleSide = -1;
+  let exitingArticle = new WeakSet();
+
+  function refreshArticleHover() {
+    const r = articleBounds(articleHover ? 14 : 6);
+    const next = !!(r && mouse.active && insideRect(mouse, r));
+    if (next && !articleHover) {
+      exitingArticle = new WeakSet([dragon.head, ...particles.filter(p => p.isDragonMember)]);
+    }
+    articleHover = next;
+    if (!next) articleFlight = null;
+  }
+
+  function dragonIgnoresArticle(p) {
+    if (!articleHover) return true;
+    if (!exitingArticle.has(p)) return false;
+    const r = articleBounds((p.radius || 2) + 4);
+    if (r) {
+      if (insideRect(p, r)) return true;
+      const edge = nearestEdge(p, r);
+      if (p.vx * edge.nx + p.vy * edge.ny <= 0) return true;
+    }
+    exitingArticle.delete(p);
+    return false;
+  }
+
 
   function refreshArticleRect() {
     if (!readingEl) return;
@@ -98,9 +128,7 @@
   }
 
   function isOverArticle() {
-    if (!isReadingPage || !articleRect) return false;
-    return mouse.x >= articleRect.left && mouse.x <= articleRect.right &&
-      mouse.y >= articleRect.top && mouse.y <= articleRect.bottom;
+    return articleHover;
   }
 
   function dragonCanHunt() {
@@ -203,6 +231,7 @@
   // Keep collision correction separate from glancing so geometry updates are
   // safe even on render frames that don't advance the simulation.
   function keepOutsideArticle(p, soft = false) {
+    if ((p === dragon.head || p.isDragonMember) && dragonIgnoresArticle(p)) return;
     const r = articleBounds((p.radius || 2) + 4);
     if (!r) { if (soft) p.dustGlance = null; return; }
     if (p.isDragonMember) p.dustGlance = null;
@@ -231,6 +260,7 @@
   }
 
   function softenDragonWall(p) {
+    if (dragonIgnoresArticle(p)) return;
     const r = articleBounds(8);
     if (!r || insideRect(p, r)) return;
     const edge = nearestEdge(p, r);
@@ -316,7 +346,9 @@
     }
     if (!articleFlight) {
       // Latch the dragon's side on entry, not the pointer's position in the text.
-      const side = dragon.head.x < (articleRect.left + articleRect.right) / 2 ? -1 : 1;
+      const delta = Math.abs(dragon.head.x - articleRect.left) - Math.abs(dragon.head.x - articleRect.right);
+      const side = Math.abs(delta) < 0.001 ? lastArticleSide : delta < 0 ? -1 : 1;
+      lastArticleSide = side;
       const gutter = side < 0 ? articleRect.left : width - articleRect.right;
       const clearance = Math.min(64, gutter * 0.35);
       const lowX = side < 0 ? 12 : articleRect.right + clearance;
@@ -332,7 +364,7 @@
       // phase or repeated orbit; the whole body has space to follow the turn.
       articleFlight = { side, startedAt: now, releasing: false, progress: 0,
         points: [start,
-          { x: clampX(start.x + dragon.head.vx / momentum * 100),
+          { x: start.x + dragon.head.vx / momentum * 100,
             y: Math.max(24, Math.min(height - 24, start.y + dragon.head.vy / momentum * 100)) },
           { x: clampX(side < 0 ? lowX : highX), y: start.y + direction * distance * 0.65 },
           { x: clampX((lowX + highX) / 2), y: start.y + direction * distance }] };
@@ -384,7 +416,7 @@
   function steerHead(desiredVx, desiredVy, steerForce, maxHeadSpeed) {
     const head = dragon.head;
     const desired = { x: head.x, y: head.y, vx: desiredVx, vy: desiredVy };
-    softenDragonWall(desired);
+    if (!dragonIgnoresArticle(head)) softenDragonWall(desired);
     desiredVx = desired.vx; desiredVy = desired.vy;
     const oldSpeed = Math.hypot(head.vx, head.vy);
     const targetSpeed = Math.hypot(desiredVx, desiredVy);
@@ -762,11 +794,13 @@
   const dotBatches = [];
   for (let c = 0; c < PALETTE.length * ALPHA_STEPS; c++) dotBatches.push([]);
 
-  function drawParticles() {
+  function drawParticles(foreground = false) {
+    const ctx = foreground ? dragonCtx : dustCtx;
     for (let b = 0; b < dotBatches.length; b++) dotBatches[b].length = 0;
 
     for (let i = 0; i < particles.length; i++) {
       const p = particles[i];
+      if (!!p.isDragonMember !== foreground) continue;
       const step = Math.min(ALPHA_STEPS - 1, (p.alpha * ALPHA_STEPS) | 0);
       const batch = dotBatches[p.colorIndex * ALPHA_STEPS + step];
       batch.push(p.renderX, p.renderY, p.radiusNow());
@@ -819,6 +853,13 @@
     canvas.style.width = width + 'px';
     canvas.style.height = height + 'px';
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (dragonCanvas) {
+      if (dragonCanvas.width !== pixelWidth) dragonCanvas.width = pixelWidth;
+      if (dragonCanvas.height !== pixelHeight) dragonCanvas.height = pixelHeight;
+      dragonCanvas.style.width = width + 'px';
+      dragonCanvas.style.height = height + 'px';
+      dragonCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
 
     refreshArticleRect();
     dragonLength = width < 640 ? 14 : 20;
@@ -871,6 +912,7 @@
     // 1. Recruitment beams. Adjacent vertebrae are no longer stroked here - the
     //    dragon's ribbon body (drawDragon) renders the spine itself.
     if (dragon.members.length > 1) {
+      const ctx = dragonCtx;
       ctx.save();
       for (let i = 1; i < dragon.members.length; i++) {
         const p1 = dragon.members[i - 1];
@@ -971,9 +1013,9 @@
   }
 
   // Where a rig particle should sit right now, in the spine's local frame
-  function rigSlotTarget(slot) {
+  function rigSlotTarget(slot, particle = dragon.head) {
     const target = rawRigSlotTarget(slot);
-    const boundary = articleBounds(8);
+    const boundary = articleHover && !dragonIgnoresArticle(particle) ? articleBounds(8) : null;
     if (target && boundary) {
       target.x = Math.max(5, Math.min(width - 5, target.x));
       target.y = Math.max(5, Math.min(height - 5, target.y));
@@ -1090,7 +1132,7 @@
     for (let i = dragon.rig.length - 1; i >= 0; i--) {
       const entry = dragon.rig[i];
       const p = entry.p;
-      const target = rigSlotTarget(entry.slot);
+      const target = rigSlotTarget(entry.slot, entry.p);
       if (!target) continue;
 
       p.dragonWeight = Math.min(1, p.dragonWeight + 0.018);
@@ -1108,6 +1150,7 @@
   }
 
   function drawDragon() {
+    const ctx = dragonCtx;
     const mem = dragon.members;
     if (dragon.activeWeight <= 0.02 || mem.length < 4) return;
 
@@ -1467,7 +1510,7 @@
     // Steering acceleration with natural momentum (gentle, unhurried)
     const steerForce = 0.045 + 0.03 * dragon.idleWeight;
     const maxHeadSpeed = (2.4 + 0.7 * dragon.idleWeight) * (1 - 0.6 * dragon.sleepWeight);
-    if (articleRect && dragonCanHunt()) {
+    if (articleRect && articleHover && dragonCanHunt()) {
       const route = articleRoute(dragon.head, mouse, articleRail());
       if (route && !route.direct) {
         const dx = route.point.x - dragon.head.x, dy = route.point.y - dragon.head.y;
@@ -1695,6 +1738,7 @@
       p.previousX = p.x;
       p.previousY = p.y;
     }
+    refreshArticleHover();
     updateDragonHead(now);
     updateDragonMembers();
     updateRig();
@@ -1715,9 +1759,12 @@
       p.renderY = p.previousY + (p.y - p.previousY) * alpha;
     }
     ctx.clearRect(0, 0, width, height);
+    if (dragonCtx !== ctx) dragonCtx.clearRect(0, 0, width, height);
     drawConnections();
     drawDragon();
     drawParticles();
+    drawParticles(true);
+    dragonCtx.globalAlpha = 1;
     ctx.globalAlpha = 1;
   }
 
@@ -1740,6 +1787,7 @@
       activeCardRect = null;
     }
     refreshArticleRect();
+    refreshArticleHover();
     // Also resolve a changed article rectangle on frames without a physics step.
     for (const p of particles) keepOutsideArticle(p);
 
@@ -1777,7 +1825,10 @@
     animationFrameId = null;
     lastFrameAt = null;
     accumulator = 0;
-    if (clear) ctx.clearRect(0, 0, width, height);
+    if (clear) {
+      ctx.clearRect(0, 0, width, height);
+      if (dragonCtx !== ctx) dragonCtx.clearRect(0, 0, width, height);
+    }
   }
 
   // Pointer & Gravity Listeners
@@ -1790,6 +1841,8 @@
     mouse.x = e.clientX;
     mouse.y = e.clientY;
     refreshArticleRect();
+    mouse.active = true;
+    refreshArticleHover();
     if (!isOverArticle()) {
       articleFlight = null;
       readingDragonArmed = true;

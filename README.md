@@ -144,6 +144,14 @@ before the fix. The existing particle simulation/lifecycle tests still apply.
 
 ### Reading-page particles
 
+The dragon ignores article walls while the cursor is outside the article's 6 px
+padded boundary. Its body, wings, and recruitment strokes render on a separate
+foreground canvas, above article content and below lightboxes, with the same
+opacity and no pointer interception. Dust keeps its background layer and walls.
+Entering starts the five-second gutter sweep from the actual head position;
+overlapping parts exit before wall constraints resume. Moving 8 px beyond the
+padded boundary restores unrestricted flight, avoiding flicker at the edge.
+
 On initial load, dust is distributed by available area outside the padded article
 and its steering cushion, rather than starting behind it and being pushed to its
 edges. Narrow gutters use a smaller cushion. The dragon stays dormant if the

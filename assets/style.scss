@@ -2038,3 +2038,6 @@ p code, li code, td code {
 
 // Restrained research journal presentation.
 @import "editorial";
+
+// Foreground dragon stays below the header and lightbox within the wrapper.
+.dragon-canvas { z-index: 10; }
