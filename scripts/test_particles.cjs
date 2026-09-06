@@ -5,7 +5,7 @@ const vm = require('node:vm');
 const path = require('node:path');
 const source = fs.readFileSync(path.join(__dirname, '../assets/particles.js'), 'utf8');
 
-function engine(mode = 'web', reduced = false) {
+function engine(mode = 'web', reduced = false, readingRect = null) {
   let now = 0, seed = 123, nextId = 0, allocations = 0, measurements = 0;
   const callbacks = new Map();
   function events(target = {}) {
@@ -32,7 +32,7 @@ function engine(mode = 'web', reduced = false) {
   } });
   const document = events({ hidden: false, readyState: 'complete',
     getElementById: id => id === 'particle-canvas' ? canvas : null,
-    querySelector: () => null, querySelectorAll: selector => selector === '.post-card' ? [card] : [] });
+    querySelector: selector => readingRect && selector.startsWith('article.') ? { getBoundingClientRect: () => readingRect } : null, querySelectorAll: selector => selector === '.post-card' ? [card] : [] });
   const window = events({ innerWidth: 1440, innerHeight: 900, devicePixelRatio: 2, matchMedia: () => preference });
   const sandbox = { Math: math, performance: { now: () => now }, window, document,
     localStorage: { getItem: () => mode, setItem() {} },
@@ -41,11 +41,14 @@ function engine(mode = 'web', reduced = false) {
   vm.createContext(sandbox);
   // Test-only seam: production has no debug globals or instrumentation overhead.
   vm.runInContext(source.replace('  function init() {', `
-    globalThis.inspect = () => ({ particles, dragon, accumulator });
+    globalThis.inspect = () => ({ particles, dragon, accumulator, articleFlight, step: STEP_MS });
+    globalThis.testHead = updateDragonHead;
+    globalThis.testRoute = (a, b) => articleRoute(a, b, articleRail());
+    globalThis.testCrosses = (a, b) => crossesArticle(a, b, articleBounds(0));
     globalThis.testRender = render;
     globalThis.setMode = setAmbientMode;
     function init() {`), sandbox);
-  return { window, document, preference, card, ctx, inspect: sandbox.inspect, render: sandbox.testRender, setMode: sandbox.setMode,
+  return { window, document, preference, card, ctx, inspect: sandbox.inspect, render: sandbox.testRender, headStep: sandbox.testHead, route: sandbox.testRoute, crosses: sandbox.testCrosses, setMode: sandbox.setMode,
     pending: () => callbacks.size, allocations: () => allocations, measurements: () => measurements,
     frame(time) { now = time; const jobs = [...callbacks.values()]; callbacks.clear(); jobs.forEach(fn => fn(now)); },
     move(x = 1000, y = 450) { window.emit('pointermove', { clientX: x, clientY: y }); } };
@@ -129,3 +132,84 @@ hover.card.emit('mouseleave'); hover.frame(1100);
 const sleep = run(60,'web','dragon',25); assert.equal(sleep.inspect().dragon.sleepWeight,1);
 sleep.move(1010,450); sleep.frame(25000 + 1000/60); assert.ok(sleep.inspect().dragon.sleepWeight < 1);
 console.log('PASS rate changes, render purity/interpolation/wrapping, bounded stalls, visibility, duplicate events, resize/rig reset, reduced motion, sleep/wake');
+
+// Exercise steering without recruitment resetting the head to its seed particle.
+const chase = engine(); chase.frame(0); chase.move(1100, 450);
+const dragon = chase.inspect().dragon;
+Object.assign(dragon.head, { x: 300, y: 450, vx: 0, vy: 0 });
+for (let i = 1; i <= 100; i++) chase.headStep(i * chase.inspect().step);
+assert.ok(dragon.head.x > 450, 'distant dragon makes direct progress toward cursor');
+assert.equal(dragon.head.y, 450, 'no circular sideways drift during distant pursuit');
+assert.equal(dragon.pursuing, true);
+// Even after the sleep timeout, finish the approach before idling.
+chase.headStep(30000);
+assert.equal(dragon.sleepWeight, 0);
+assert.equal(dragon.idleWeight, 0);
+// Within the transition band, the orbit starts to return gradually.
+Object.assign(dragon.head, { x: 900, y: 450, vx: 0, vy: 0 });
+chase.headStep(1000);
+assert.ok(dragon.head.vx > 0 && Math.abs(dragon.head.vy) > 0);
+assert.equal(dragon.pursuing, true);
+// At the original orbit radius the original tangential steering is unchanged.
+Object.assign(dragon.head, { x: 1100 - dragon.orbitRadius, y: 450, vx: 0, vy: 0 });
+chase.headStep(1000);
+assert.equal(dragon.pursuing, false);
+assert.equal(dragon.head.vx, 0);
+assert.ok(Math.abs(Math.abs(dragon.head.vy) - dragon.orbitSpeed * 0.045) < 1e-10);
+// A new distant target exits idle choreography and redirects the dragon.
+dragon.idleWeight = 1;
+chase.move(100, 100);
+chase.headStep(1000);
+assert.equal(dragon.pursuing, true);
+assert.ok(dragon.idleWeight < 1);
+chase.card.emit('mouseenter'); chase.headStep(1000);
+assert.equal(dragon.pursuing, false, 'card hover takes priority over pursuit');
+console.log('PASS direct pursuit, smooth orbit return, distant idle suppression, retargeting, and hover priority');
+
+
+for (const side of [-1, 1]) {
+  const rect = {left:350,right:1090,top:160,bottom:4000,width:740};
+  const reading = engine('web', false, rect); reading.frame(0);
+  reading.move(side < 0 ? 160 : 1280, 450);
+  for (let i=1;i<=180;i++) reading.frame(i*1000/90);
+  const d = reading.inspect().dragon;
+  Object.assign(d.head, {x:side < 0 ? 180 : 1250,y:450,vx:0,vy:1});
+  // Enter on the opposite half of the text: the dragon's side wins.
+  reading.move(side < 0 ? 1000 : 420,450);
+  let minY=Infinity,maxY=-Infinity;
+  for (let i=1;i<=400;i++) {
+    if(i===180) reading.move(side < 0 ? 420 : 1000,550);
+    if(i===240) { rect.top=-1500; reading.window.emit('scroll'); }
+    reading.frame(2000+i*1000/90);
+    assert.equal(reading.inspect().articleFlight.side,side);
+    assert.ok(side < 0 ? d.head.x < rect.left : d.head.x > rect.right);
+    minY=Math.min(minY,d.head.y);maxY=Math.max(maxY,d.head.y);
+    assert.equal(d.sleepWeight,0,'no article perch');
+  }
+  assert.ok(maxY-minY>40,'dragon follows a curve in the gutter');
+  assert.ok(d.members.length>0,'dragon is still assembled before five seconds');
+  for(let i=401;i<=520;i++) reading.frame(2000+i*1000/90);
+  assert.equal(d.members.length,0);
+  assert.equal(d.rig.length,0);
+  assert.ok(reading.inspect().particles.every(p=>!p.isDragonMember),'spine and appendages all release');
+  assert.ok(reading.inspect().particles.every(p=>!(p.x>rect.left&&p.x<rect.right&&p.y>rect.top&&p.y<rect.bottom)));
+  reading.move(720,600);reading.frame(8000);
+  assert.equal(d.members.length,0,'motion within the article must not reassemble the dragon');
+  reading.move(side < 0 ? 150 : 1280,450);
+  reading.frame(8100);
+  assert.equal(reading.inspect().articleFlight,null);
+  assert.ok(d.members.length>0,'leaving the article restores normal recruitment');
+}
+const soft = engine('web',false,{left:350,right:1090,top:160,bottom:740,width:740});
+soft.frame(0);const dust=soft.inspect().particles[0];
+Object.assign(dust,{x:336,y:450,vx:1,vy:0,baseVx:1,baseVy:0,radius:2});
+soft.frame(soft.inspect().step);
+assert.ok(dust.vx>0&&dust.vx<0.9,'soft dust boundary remains');
+const phone=engine('web',false,{left:20,right:370,top:140,bottom:4000,width:350});
+phone.window.innerWidth=390;phone.frame(0);phone.move(10,450);phone.frame(20);
+phone.move(200,450);
+for(let i=1;i<=600;i++) phone.frame(20+i*1000/90);
+assert.equal(phone.inspect().dragon.members.length,0);
+assert.equal(phone.inspect().dragon.rig.length,0);
+assert.ok(phone.inspect().particles.every(p=>!(p.x>20&&p.x<370&&p.y>140&&p.y<4000)));
+console.log('PASS left/right gutter curves, five-second release, no hover re-recruitment, exit recovery, scrolling and mobile boundaries');

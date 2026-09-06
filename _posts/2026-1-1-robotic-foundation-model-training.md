@@ -123,7 +123,7 @@ The final dataset consisted of three distinct buckets:
 - **Real Teleoperation Data (N=50):** Collected on the SO-101 instructor arm setup <sup>[[9]](#ref-so-arm101)</sup> to anchor the policy in true physical dynamics.
 - **Augmented Real Data (N=150):** Generated via segmentation-based background replacement <sup>[[2]](#ref-datasocks)</sup> and **Kornia** <sup>[[3]](#ref-kornia)</sup> visual transforms. This forces the vision encoder to decouple kinematic signatures from visual framing.
 
-<figure>
+<figure style="width: 50%; margin-left: 5%;">
   {% include media.html url="/videos/augmented_synthetic_data.mp4" alt="Augmented synthetic training data" controls=true %}
   <figcaption>Example of the augmented real data. Credit: <a href="#ref-datasocks">DataSocks</a>.</figcaption>
 </figure>

@@ -12,7 +12,7 @@
  *    and fast reset to neutral Brownian drift when idle.
  * 4. Ambient modes: Web (Brownian drift + constellation links) or Flow (shared curl field).
  * 5. Reading pages (article.post/page.detailed): dust and the dragon may travel
- *    under the article card. The dragon is not drawn while the cursor is over it.
+ *    around the article card, gliding in one gutter before dissolving while you read.
  */
 (function () {
   'use strict';
@@ -27,7 +27,7 @@
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
   let animationFrameId = null;
-  const STEP_MS = 1000 / 60;
+  const STEP_MS = 1000 / 90;
   const MAX_STEPS = 6;
   let lastFrameAt = null;
   let accumulator = 0;
@@ -81,8 +81,8 @@
   let isHeaderHovered = false;
   let cardRectDirty = false;
 
-  // Posts / about: keep dust out of the article and only let the dragon hunt
-  // in the gutters (cursor not over <article class="post|page detailed">).
+  // Reading pages: the article is a physical obstacle; the dragon follows its
+  // current gutter briefly while the cursor is over the text.
   const readingEl = document.querySelector('article.post.detailed, article.page.detailed');
   const isReadingPage = !!readingEl;
   let articleRect = null;
@@ -103,7 +103,193 @@
   }
 
   function dragonCanHunt() {
-    return mouse.active && !activeCard && !isHeaderHovered && !isOverArticle();
+    return mouse.active && !activeCard && !isHeaderHovered &&
+      (!articleFlight || !articleFlight.releasing);
+  }
+
+  const ARTICLE = { clearance: 48, cushion: 32, dragonCushion: 80, releaseDelay: 5000 };
+  let articleFlight = null;
+
+  function articleBounds(padding = 6) {
+    if (!articleRect || articleRect.width === 0) return null;
+    return { left: articleRect.left - padding, right: articleRect.right + padding,
+      top: articleRect.top - padding, bottom: articleRect.bottom + padding };
+  }
+
+  function insideRect(p, r) {
+    return p.x > r.left && p.x < r.right && p.y > r.top && p.y < r.bottom;
+  }
+
+  function nearestEdge(p, r) {
+    const choices = [
+      { x: r.left, y: Math.max(r.top, Math.min(r.bottom, p.y)), nx: -1, ny: 0, edge: 'left' },
+      { x: r.right, y: Math.max(r.top, Math.min(r.bottom, p.y)), nx: 1, ny: 0, edge: 'right' },
+      { x: Math.max(r.left, Math.min(r.right, p.x)), y: r.top, nx: 0, ny: -1, edge: 'top' },
+      { x: Math.max(r.left, Math.min(r.right, p.x)), y: r.bottom, nx: 0, ny: 1, edge: 'bottom' }
+    ];
+    return choices.reduce((a, b) => Math.hypot(p.x - a.x, p.y - a.y) <=
+      Math.hypot(p.x - b.x, p.y - b.y) ? a : b);
+  }
+
+  // A soft turn before contact; the final projection also handles article
+  // geometry moving over a particle on scroll/resize without hiding it.
+  function keepOutsideArticle(p, soft = false) {
+    const r = articleBounds((p.radius || 2) + 4);
+    if (!r) return;
+    const margin = soft ? ARTICLE.cushion : 0;
+    if (p.x < r.left - margin || p.x > r.right + margin ||
+        p.y < r.top - margin || p.y > r.bottom + margin) return;
+    const edge = nearestEdge(p, r);
+    const inside = insideRect(p, r);
+    const distance = Math.hypot(p.x - edge.x, p.y - edge.y);
+    if (inside) {
+      p.x = edge.x; p.y = edge.y;
+      p.previousX = p.x; p.previousY = p.y;
+    }
+    if (inside || (soft && distance < ARTICLE.cushion)) {
+      const outward = p.vx * edge.nx + p.vy * edge.ny;
+      const strength = inside ? 1 : Math.pow(1 - distance / ARTICLE.cushion, 2);
+      if (outward < 0) {
+        p.vx -= edge.nx * outward * strength;
+        p.vy -= edge.ny * outward * strength;
+      }
+      if (soft) {
+        p.vx += edge.nx * 0.08 * strength;
+        p.vy += edge.ny * 0.08 * strength;
+      }
+    }
+  }
+
+  function softenDragonWall(p) {
+    const r = articleBounds(8);
+    if (!r || insideRect(p, r)) return;
+    const edge = nearestEdge(p, r);
+    const distance = Math.hypot(p.x - edge.x, p.y - edge.y);
+    const gutter = edge.nx < 0 ? articleRect.left : edge.nx > 0 ? width - articleRect.right : height;
+    const cushion = Math.min(ARTICLE.dragonCushion, Math.max(4, gutter * 0.4));
+    if (distance >= cushion) return;
+    const inward = p.vx * edge.nx + p.vy * edge.ny;
+    if (inward >= 0) return;
+    const t = 1 - distance / cushion;
+    const turn = t * t * (3 - 2 * t) * 0.35;
+    const tx = -edge.ny, ty = edge.nx;
+    const along = p.vx * tx + p.vy * ty;
+    const direction = Math.abs(along) > 0.01 ? Math.sign(along) : (dragon.head.vy >= 0 ? -1 : 1);
+    // Redirect inward motion along the wall well before contact instead of
+    // stopping every vertebra at the same hard boundary.
+    p.vx += -inward * turn * (edge.nx + tx * direction);
+    p.vy += -inward * turn * (edge.ny + ty * direction);
+  }
+
+  // Whether a segment crosses the rectangle interior (edge-following is OK).
+  function crossesArticle(a, b, r) {
+    let enter = 0, leave = 1;
+    for (const [axis, low, high] of [['x', r.left + 0.01, r.right - 0.01],
+      ['y', r.top + 0.01, r.bottom - 0.01]]) {
+      const delta = b[axis] - a[axis];
+      if (Math.abs(delta) < 1e-9) {
+        if (a[axis] <= low || a[axis] >= high) return false;
+      } else {
+        const t1 = (low - a[axis]) / delta, t2 = (high - a[axis]) / delta;
+        enter = Math.max(enter, Math.min(t1, t2));
+        leave = Math.min(leave, Math.max(t1, t2));
+      }
+    }
+    return enter < leave && leave > 0 && enter < 1;
+  }
+
+  function articleRail() {
+    if (!articleRect) return null;
+    // Fit the rail into narrow gutters rather than sending the head offscreen.
+    const gap = (space) => Math.max(3, Math.min(ARTICLE.clearance, space / 2));
+    return { left: articleRect.left - gap(articleRect.left),
+      right: articleRect.right + gap(width - articleRect.right),
+      top: articleRect.top - gap(articleRect.top),
+      bottom: articleRect.bottom + gap(height - articleRect.bottom) };
+  }
+
+  function articleRoute(start, target, rail) {
+    // Visibility graph: endpoints and the four article corners. Corners outside
+    // the viewport are unavailable, so a long scrolled article keeps its reader
+    // company in the current gutter until a visible route to the other opens.
+    const obstacle = articleBounds(6);
+    if (!crossesArticle(start, target, obstacle)) return { point: target, length: Math.hypot(target.x - start.x, target.y - start.y), direct: true };
+    const nodes = [start, target, ...[
+      { x: rail.left, y: rail.top }, { x: rail.right, y: rail.top },
+      { x: rail.right, y: rail.bottom }, { x: rail.left, y: rail.bottom }
+    ].filter(p => p.x >= 2 && p.x <= width - 2 && p.y >= 2 && p.y <= height - 2)];
+    const distances = nodes.map(() => Infinity), previous = [], visited = [];
+    distances[0] = 0;
+    for (let k = 0; k < nodes.length; k++) {
+      let u = -1;
+      for (let i = 0; i < nodes.length; i++) if (!visited[i] && (u < 0 || distances[i] < distances[u])) u = i;
+      if (u < 0 || !Number.isFinite(distances[u])) break;
+      if (u === 1) {
+        let next = 1;
+        while (previous[next] !== 0) next = previous[next];
+        return { point: nodes[next], length: distances[1], direct: false };
+      }
+      visited[u] = true;
+      for (let v = 1; v < nodes.length; v++) {
+        if (visited[v] || crossesArticle(nodes[u], nodes[v], obstacle)) continue;
+        const distance = distances[u] + Math.hypot(nodes[v].x - nodes[u].x, nodes[v].y - nodes[u].y);
+        if (distance < distances[v]) { distances[v] = distance; previous[v] = u; }
+      }
+    }
+    return null;
+  }
+
+  function updateArticleFlight(now) {
+    if (!isOverArticle() || !mouse.active || activeCard || isHeaderHovered) {
+      articleFlight = null;
+      return;
+    }
+    if (!articleFlight) {
+      // Latch the dragon's side on entry, not the pointer's position in the text.
+      const side = dragon.head.x < (articleRect.left + articleRect.right) / 2 ? -1 : 1;
+      const gutter = side < 0 ? articleRect.left : width - articleRect.right;
+      const clearance = Math.min(64, gutter * 0.35);
+      const lowX = side < 0 ? 12 : articleRect.right + clearance;
+      const highX = side < 0 ? articleRect.left - clearance : width - 12;
+      const clampX = x => Math.max(Math.min(lowX, highX), Math.min(Math.max(lowX, highX), x));
+      const start = { x: dragon.head.x, y: dragon.head.y };
+      const downRoom = height - 24 - start.y, upRoom = start.y - 24;
+      let direction = dragon.head.vy >= 0 ? 1 : -1;
+      if ((direction > 0 ? downRoom : upRoom) < 160) direction *= -1;
+      const distance = Math.max(60, Math.min(520, direction > 0 ? downRoom : upRoom));
+      const momentum = Math.hypot(dragon.head.vx, dragon.head.vy) || 1;
+      // One open Bezier sweep, seeded from the current heading. No looping
+      // phase or repeated orbit; the whole body has space to follow the turn.
+      articleFlight = { side, startedAt: now, releasing: false, progress: 0,
+        points: [start,
+          { x: clampX(start.x + dragon.head.vx / momentum * 100),
+            y: Math.max(24, Math.min(height - 24, start.y + dragon.head.vy / momentum * 100)) },
+          { x: clampX(side < 0 ? lowX : highX), y: start.y + direction * distance * 0.65 },
+          { x: clampX((lowX + highX) / 2), y: start.y + direction * distance }] };
+
+    }
+    // Pointer motion within the article does not restart the five-second timer.
+    articleFlight.progress = Math.min(1, Math.max(0, (now - articleFlight.startedAt) / ARTICLE.releaseDelay));
+    articleFlight.releasing = articleFlight.progress >= 1;
+  }
+
+  function glideBesideArticle() {
+    const flight = articleFlight;
+    const t = flight.progress, u = 1 - t;
+    const [a, b, c, d] = flight.points;
+    const x = u*u*u*a.x + 3*u*u*t*b.x + 3*u*t*t*c.x + t*t*t*d.x;
+    const y = u*u*u*a.y + 3*u*u*t*b.y + 3*u*t*t*c.y + t*t*t*d.y;
+    // Derivative in pixels per simulation step: feed-forward plus gentle
+    // correction follows the open curve without racing a circling target.
+    const rate = STEP_MS / ARTICLE.releaseDelay;
+    const vx = (3*u*u*(b.x-a.x) + 6*u*t*(c.x-b.x) + 3*t*t*(d.x-c.x)) * rate;
+    const vy = (3*u*u*(b.y-a.y) + 6*u*t*(c.y-b.y) + 3*t*t*(d.y-c.y)) * rate;
+    dragon.pursuing = false;
+    dragon.idleWeight = Math.max(0, dragon.idleWeight - 0.045);
+    dragon.sleepWeight = Math.max(0, dragon.sleepWeight - 0.06);
+    dragon.beatPhase += 0.024;
+    steerHead(vx + (x - dragon.head.x) * 0.035,
+      vy + (y - dragon.head.y) * 0.035, 0.07, dragon.pursuitSpeed);
   }
 
   // Mouse & Cosmic Dragon Engine
@@ -133,8 +319,10 @@
       dragon.head.vx = (dragon.head.vx / headSpeed) * maxHeadSpeed;
       dragon.head.vy = (dragon.head.vy / headSpeed) * maxHeadSpeed;
     }
+    softenDragonWall(dragon.head);
     dragon.head.x += dragon.head.vx;
     dragon.head.y += dragon.head.vy;
+    keepOutsideArticle(dragon.head);
     recordHeadHistory();
   }
 
@@ -146,6 +334,10 @@
     members: [], // Dynamically recruited Particle instances [P_head, ..., P_tail]
     orbitRadius: 78,
     orbitSpeed: 1.6, // Relaxed, tranquil orbit speed
+    pursuitStartDistance: 300, // Chase directly when the cursor is this far away (CSS px)
+    pursuitEndDistance: 140, // Fully return to orbit inside this distance
+    pursuitSpeed: 2.4,
+    pursuing: false,
     spinDir: 1, // 1 = clockwise, -1 = counter-clockwise
     activeWeight: 0,
     time: 0,
@@ -481,6 +673,8 @@
     dragon.activeWeight = dragon.idleWeight = dragon.sleepWeight = 0;
     dragon.figTheta = dragon.beatPhase = dragon.time = 0;
     dragon.spinDir = dragon.figDir = 1;
+    dragon.pursuing = false;
+    articleFlight = null;
     dragon.head.x = width / 2;
     dragon.head.y = height / 2;
     dragon.head.vx = dragon.head.vy = 0;
@@ -654,6 +848,16 @@
 
   // Where a rig particle should sit right now, in the spine's local frame
   function rigSlotTarget(slot) {
+    const target = rawRigSlotTarget(slot);
+    const boundary = articleBounds(8);
+    if (target && boundary) {
+      target.x = Math.max(5, Math.min(width - 5, target.x));
+      target.y = Math.max(5, Math.min(height - 5, target.y));
+    }
+    return target && boundary && insideRect(target, boundary) ? nearestEdge(target, boundary) : target;
+  }
+
+  function rawRigSlotTarget(slot) {
     const mem = dragon.members;
     if (slot.kind === 'snout' || slot.kind === 'horn') {
       if (mem.length < 3) return null;
@@ -713,6 +917,15 @@
       return;
     }
 
+    if (!dragonCanHunt()) {
+      for (const entry of dragon.rig) {
+        entry.p.dragonWeight = Math.max(0, entry.p.dragonWeight - 0.035);
+        if (entry.p.dragonWeight <= 0.001) entry.p.isDragonMember = false;
+      }
+      dragon.rig = dragon.rig.filter(entry => entry.p.isDragonMember);
+      return;
+    }
+
     const taken = {};
     for (let i = 0; i < dragon.rig.length; i++) taken[dragon.rig[i].slot.key] = true;
 
@@ -731,7 +944,7 @@
         let bestD = Infinity;
         for (let i = 0; i < particles.length; i++) {
           const p = particles[i];
-          if (p.isDragonMember) continue;
+          if (p.isDragonMember || !onArticleFlightSide(p)) continue;
           const d = Math.hypot(p.x - target.x, p.y - target.y);
           if (d < bestD) {
             bestD = d;
@@ -969,6 +1182,7 @@
 
   function updateDragonHead(now) {
     dragon.time += 0.016;
+    updateArticleFlight(now);
 
     if (dragonCanHunt()) {
       dragon.activeWeight = Math.min(1, dragon.activeWeight + 0.05);
@@ -978,11 +1192,25 @@
 
     if (dragon.activeWeight <= 0.001) return;
 
-    // ---- Idle detection: circle -> infinity -> curl up and sleep ----
-    const restMs = now - lastMoveAt;
+    keepOutsideArticle(dragon.head);
+    if (articleFlight) {
+      glideBesideArticle();
+      return;
+    }
+
+    // Latch pursuit until arrival so the normal figure-eight can extend beyond
+    // the orbit without repeatedly switching back into chase mode.
+    const dx = dragon.head.x - mouse.x;
+    const dy = dragon.head.y - mouse.y;
+    const dist = Math.hypot(dx, dy) || 0.001;
     const awake = dragonCanHunt();
-    const wantSleep = restMs > SLEEP_DELAY_MS && awake;
-    const wantIdle = restMs > IDLE_DELAY_MS && awake && !wantSleep;
+    if (!awake || dist <= dragon.pursuitEndDistance) dragon.pursuing = false;
+    else if (dist >= dragon.pursuitStartDistance) dragon.pursuing = true;
+
+    // Reach a distant resting cursor before starting idle choreography.
+    const restMs = now - lastMoveAt;
+    const wantSleep = restMs > SLEEP_DELAY_MS && awake && !dragon.pursuing;
+    const wantIdle = restMs > IDLE_DELAY_MS && awake && !dragon.pursuing && !wantSleep;
 
     // Sleep creeps in slowly but breaks instantly on the first twitch of the mouse
     dragon.sleepWeight = wantSleep
@@ -1022,9 +1250,6 @@
     }
 
     // Vector from mouse cursor to dragon head
-    const dx = dragon.head.x - mouse.x;
-    const dy = dragon.head.y - mouse.y;
-    const dist = Math.hypot(dx, dy) || 0.001;
     const nx = dx / dist; // outward radial unit vector
     const ny = dy / dist;
 
@@ -1105,10 +1330,33 @@
       desiredVy = desiredVy * (1 - w) + figVy * w;
     }
 
+    if (dragon.pursuing) {
+      // Far away: aim directly at the cursor. Ease the tangential orbit back in
+      // on approach, with zero slope at both ends to avoid a steering seam.
+      const t = Math.max(0, Math.min(1, (dist - dragon.pursuitEndDistance) /
+        (dragon.pursuitStartDistance - dragon.pursuitEndDistance)));
+      const pursuit = t * t * (3 - 2 * t);
+      desiredVx += (-nx * dragon.pursuitSpeed - desiredVx) * pursuit;
+      desiredVy += (-ny * dragon.pursuitSpeed - desiredVy) * pursuit;
+    }
+
     // Steering acceleration with natural momentum (gentle, unhurried)
     const steerForce = 0.045 + 0.03 * dragon.idleWeight;
     const maxHeadSpeed = (2.4 + 0.7 * dragon.idleWeight) * (1 - 0.6 * dragon.sleepWeight);
+    if (articleRect && dragonCanHunt()) {
+      const route = articleRoute(dragon.head, mouse, articleRail());
+      if (route && !route.direct) {
+        const dx = route.point.x - dragon.head.x, dy = route.point.y - dragon.head.y;
+        const d = Math.hypot(dx, dy) || 1;
+        desiredVx = dx / d * dragon.pursuitSpeed;
+        desiredVy = dy / d * dragon.pursuitSpeed;
+      }
+    }
     steerHead(desiredVx, desiredVy, steerForce, maxHeadSpeed);
+  }
+
+  function onArticleFlightSide(p) {
+    return !articleFlight || (articleFlight.side < 0 ? p.x < articleRect.left : p.x > articleRect.right);
   }
 
   function updateDragonMembers() {
@@ -1124,6 +1372,7 @@
     }
 
     const targetCount = dragonLength;
+    const recruitAt = articleFlight ? dragon.head : mouse;
 
     if (dragonCanHunt()) {
       // 1. Initial seed: recruit the particle closest to the cursor position
@@ -1132,7 +1381,8 @@
         let minDist = Infinity;
         for (let i = 0; i < particles.length; i++) {
           const p = particles[i];
-          const d = Math.hypot(p.x - mouse.x, p.y - mouse.y);
+          if (!onArticleFlightSide(p)) continue;
+          const d = Math.hypot(p.x - recruitAt.x, p.y - recruitAt.y);
           if (d < minDist) {
             minDist = d;
             nearest = p;
@@ -1163,7 +1413,8 @@
             const p = particles[i];
             if (p.isDragonMember) continue;
             // Measure distance to cursor so nearby particles are gathered in order
-            const d = Math.hypot(p.x - mouse.x, p.y - mouse.y);
+            if (!onArticleFlightSide(p)) continue;
+            const d = Math.hypot(p.x - recruitAt.x, p.y - recruitAt.y);
             if (d < minDistToCursor) {
               minDistToCursor = d;
               candidate = p;
@@ -1326,7 +1577,11 @@
     for (let i = 0; i < dragon.members.length; i++) {
       dragon.members[i].memberIndex = i;
     }
-    for (const p of particles) p.update();
+    for (const p of particles) {
+      if (p.isDragonMember) softenDragonWall(p);
+      p.update();
+      keepOutsideArticle(p, !p.isDragonMember);
+    }
   }
 
   function render(alpha) {
@@ -1336,7 +1591,7 @@
     }
     ctx.clearRect(0, 0, width, height);
     drawConnections();
-    if (!isOverArticle()) drawDragon();
+    drawDragon();
     drawParticles();
     ctx.globalAlpha = 1;
   }
@@ -1360,6 +1615,8 @@
       activeCardRect = null;
     }
     refreshArticleRect();
+    // Also resolve a changed article rectangle on frames without a physics step.
+    for (const p of particles) keepOutsideArticle(p);
 
     if (lastFrameAt !== null) {
       // Bound work after a stall and discard old time, rather than spiralling
@@ -1408,6 +1665,7 @@
     mouse.x = e.clientX;
     mouse.y = e.clientY;
     refreshArticleRect();
+    if (!isOverArticle()) articleFlight = null;
     if (!mouse.hasMoved) {
       dragon.head.x = e.clientX;
       dragon.head.y = e.clientY;

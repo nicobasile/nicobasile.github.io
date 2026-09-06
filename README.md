@@ -109,3 +109,49 @@ a tab when another opens; the profiler reports whether it used a real visibility
 transition or simulated the event. Instrumentation is confined to test pages.
 Chrome power/display scheduling can still cap displayed FPS; low callback work
 with longer callback intervals should not be mistaken for slow physics.
+
+### Chrome video cadence regression
+
+Chrome on macOS can classify two playing previews as a video conference and
+lower the whole page's frame cadence to their frame rate, even while the canvas
+is animating. The trace showed a switch from 120 Hz to 15 Hz; particle callbacks
+still took less than 1 ms. Pausing the videos immediately restored 120 Hz.
+See Chromium's [VideoConferenceMatcher](https://chromium.googlesource.com/chromium/src/+/main/components/viz/service/display/frame_interval_matchers.cc).
+
+Autoplay previews now contain repeated frames at 120 fps. This preserves their
+motion, dimensions, and duration (within one 120 Hz frame) and leaves the particle
+engine entirely unchanged. It does not synthesize intermediate motion or change
+playback speed. Encoding at CRF 18 preserves high visual quality but increases
+the size and decode work of the longer Minecraft previews. Inline controlled
+videos and unused source clips retain their original encoding.
+
+For new autoplay previews, normalize once from the original source before
+building; already normalized files are skipped:
+
+```bash
+python3 scripts/media_assets.py smooth videos/your-preview.mp4
+python3 scripts/media_assets.py validate --site /path/to/build
+NODE_PATH=/path/to/node_modules BROWSER_CHANNEL=chrome node scripts/test_particle_media.cjs /path/to/build
+```
+
+Validation rejects low-cadence autoplay previews. The browser regression compares
+stationary-cursor frame intervals with simultaneous videos playing versus paused,
+after Chrome's temporary input boost expires. It exercises the homepage and both
+project pages, including four simultaneous Minecraft previews. Run headed and
+without competing test browsers. On the tested 120 Hz Mac, the fixed pages
+averaged 8.3–8.5 ms per frame with p95 at 9.2–9.3 ms, versus roughly 67 ms stalls
+before the fix. The existing particle simulation/lifecycle tests still apply.
+
+### Reading-page particles
+
+Dust turns softly away from article walls. Entering the article starts a single flowing
+Bezier sweep in whichever gutter the dragon already occupied (left or right).
+The side and five-second timer stay fixed even if the pointer moves across the
+text. After five seconds, the spine and wing particles dissolve back into ambient
+dust; the dragon stays released until the pointer leaves the article. Outside
+the text, normal pursuit, orbiting, and idle behavior resume. There is no article
+edge-following or resting pose.
+
+Tune `ARTICLE.releaseDelay` (milliseconds), `ARTICLE.dragonCushion` (early wall steering), and `ARTICLE.cushion` in
+`assets/particles.js`. The curve fits the available gutter width, and scroll and
+resize refresh the obstacle geometry.
