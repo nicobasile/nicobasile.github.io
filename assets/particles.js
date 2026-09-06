@@ -131,14 +131,54 @@
       Math.hypot(p.x - b.x, p.y - b.y) ? a : b);
   }
 
-  // A soft turn before contact; the final projection also handles article
-  // geometry moving over a particle on scroll/resize without hiding it.
+  function glanceDust(p, r, edge, distance, displaced) {
+    const space = edge.edge === 'left' ? r.left : edge.edge === 'right' ? width - r.right :
+      edge.edge === 'top' ? r.top : height - r.bottom;
+    const cushion = Math.min(ARTICLE.cushion, Math.max(2, space * 0.55));
+    if (!displaced && distance >= cushion) { p.dustGlance = null; return; }
+    const tx = -edge.ny, ty = edge.nx;
+    if (!p.dustGlance || p.dustGlance.edge !== edge.edge) {
+      const inward = Math.min(p.vx * edge.nx + p.vy * edge.ny,
+        p.baseVx * edge.nx + p.baseVy * edge.ny);
+      if (!displaced && inward >= 0) return;
+      const along = p.vx * tx + p.vy * ty;
+      const baseAlong = p.baseVx * tx + p.baseVy * ty;
+      const direction = Math.abs(along) > 0.001 ? Math.sign(along) :
+        Math.abs(baseAlong) > 0.001 ? Math.sign(baseAlong) : (p.index % 2 ? 1 : -1);
+      // Stable variation without consuming the simulation's random sequence.
+      const angle = (25 + ((p.index * 7) % 16)) * Math.PI / 180;
+      p.dustGlance = { edge: edge.edge, direction, angle };
+    }
+    const { direction, angle } = p.dustGlance;
+    const dx = edge.nx * Math.sin(angle) + tx * direction * Math.cos(angle);
+    const dy = edge.ny * Math.sin(angle) + ty * direction * Math.cos(angle);
+    const heading = Math.atan2(dy, dx);
+    // Rotate, don't blend vectors: blending can cancel velocity and park dust
+    // against the wall. A displaced particle must depart immediately.
+    for (const [x, y] of [['vx', 'vy'], ['baseVx', 'baseVy']]) {
+      const speed = Math.hypot(p[x], p[y]);
+      if (speed < 1e-12) continue;
+      const current = Math.atan2(p[y], p[x]);
+      const delta = Math.atan2(Math.sin(heading - current), Math.cos(heading - current));
+      const limit = displaced ? Math.PI : Math.min(0.6, Math.max(0.12, speed * 1.6 / cushion));
+      const turn = Math.max(-limit, Math.min(limit, delta));
+      p[x] = Math.cos(current + turn) * speed;
+      p[y] = Math.sin(current + turn) * speed;
+    }
+  }
+
+  // Keep collision correction separate from glancing so geometry updates are
+  // safe even on render frames that don't advance the simulation.
   function keepOutsideArticle(p, soft = false) {
     const r = articleBounds((p.radius || 2) + 4);
-    if (!r) return;
+    if (!r) { if (soft) p.dustGlance = null; return; }
+    if (p.isDragonMember) p.dustGlance = null;
     const margin = soft ? ARTICLE.cushion : 0;
     if (p.x < r.left - margin || p.x > r.right + margin ||
-        p.y < r.top - margin || p.y > r.bottom + margin) return;
+        p.y < r.top - margin || p.y > r.bottom + margin) {
+      if (soft) p.dustGlance = null;
+      return;
+    }
     const edge = nearestEdge(p, r);
     const inside = insideRect(p, r);
     const distance = Math.hypot(p.x - edge.x, p.y - edge.y);
@@ -146,17 +186,14 @@
       p.x = edge.x; p.y = edge.y;
       p.previousX = p.x; p.previousY = p.y;
     }
-    if (inside || (soft && distance < ARTICLE.cushion)) {
+    if (!p.isDragonMember && Number.isFinite(p.baseVx) && (soft || inside)) {
+      // Runs after the Web/Flow drift update, preventing an inward field from
+      // undoing the departure direction while the particle leaves the cushion.
+      glanceDust(p, r, edge, distance, inside);
+    } else if (inside) {
+      // Preserve the dragon's existing emergency collision response exactly.
       const outward = p.vx * edge.nx + p.vy * edge.ny;
-      const strength = inside ? 1 : Math.pow(1 - distance / ARTICLE.cushion, 2);
-      if (outward < 0) {
-        p.vx -= edge.nx * outward * strength;
-        p.vy -= edge.ny * outward * strength;
-      }
-      if (soft) {
-        p.vx += edge.nx * 0.08 * strength;
-        p.vy += edge.ny * 0.08 * strength;
-      }
+      if (outward < 0) { p.vx -= edge.nx * outward; p.vy -= edge.ny * outward; }
     }
   }
 
@@ -312,17 +349,46 @@
   }
 
   function steerHead(desiredVx, desiredVy, steerForce, maxHeadSpeed) {
-    dragon.head.vx += (desiredVx - dragon.head.vx) * steerForce;
-    dragon.head.vy += (desiredVy - dragon.head.vy) * steerForce;
-    const headSpeed = Math.hypot(dragon.head.vx, dragon.head.vy);
-    if (headSpeed > maxHeadSpeed) {
-      dragon.head.vx = (dragon.head.vx / headSpeed) * maxHeadSpeed;
-      dragon.head.vy = (dragon.head.vy / headSpeed) * maxHeadSpeed;
+    const head = dragon.head;
+    const desired = { x: head.x, y: head.y, vx: desiredVx, vy: desiredVy };
+    softenDragonWall(desired);
+    desiredVx = desired.vx; desiredVy = desired.vy;
+    const oldSpeed = Math.hypot(head.vx, head.vy);
+    const targetSpeed = Math.hypot(desiredVx, desiredVy);
+    let vx = head.vx + (desiredVx - head.vx) * steerForce;
+    let vy = head.vy + (desiredVy - head.vy) * steerForce;
+    let speed = Math.hypot(vx, vy);
+    if (oldSpeed > 0.01 && targetSpeed > 0.01) {
+      // Blend speed independently: opposing direction vectors must not cancel
+      // the dragon's forward motion halfway through a bank.
+      speed = oldSpeed + (targetSpeed - oldSpeed) * steerForce;
+      const heading = Math.atan2(head.vy, head.vx);
+      let targetTurn = Math.atan2(head.vx * desiredVy - head.vy * desiredVx,
+        head.vx * desiredVx + head.vy * desiredVy);
+      // At an ambiguous 180-degree reversal, keep banking in the current
+      // direction instead of letting tiny rounding changes flip the choice.
+      if (Math.abs(targetTurn) > Math.PI - 0.08) {
+        targetTurn = Math.abs(targetTurn) * Math.sign(dragon.turnVelocity || dragon.spinDir);
+      }
+      let wantedTurn = Math.atan2(head.vx * vy - head.vy * vx, head.vx * vx + head.vy * vy);
+      if (Math.abs(targetTurn) > Math.PI / 2) {
+        // Bank into a new mode rather than braking to zero and flipping over.
+        wantedTurn = targetTurn * steerForce;
+      }
+      wantedTurn = Math.max(-dragon.maxTurnRate, Math.min(dragon.maxTurnRate, wantedTurn));
+      dragon.turnVelocity += Math.max(-dragon.maxTurnAcceleration,
+        Math.min(dragon.maxTurnAcceleration, wantedTurn - dragon.turnVelocity));
+      const turn = dragon.turnVelocity;
+      speed = Math.min(speed, maxHeadSpeed);
+      vx = Math.cos(heading + turn) * speed;
+      vy = Math.sin(heading + turn) * speed;
+    } else {
+      dragon.turnVelocity = 0;
+      if (speed > maxHeadSpeed) { vx *= maxHeadSpeed / speed; vy *= maxHeadSpeed / speed; }
     }
-    softenDragonWall(dragon.head);
-    dragon.head.x += dragon.head.vx;
-    dragon.head.y += dragon.head.vy;
-    keepOutsideArticle(dragon.head);
+    head.vx = vx; head.vy = vy;
+    head.x += head.vx; head.y += head.vy;
+    keepOutsideArticle(head);
     recordHeadHistory();
   }
 
@@ -338,6 +404,9 @@
     pursuitEndDistance: 140, // Fully return to orbit inside this distance
     pursuitSpeed: 2.4,
     pursuing: false,
+    maxTurnRate: 0.055, // Radians per simulation step: limits sudden heading changes
+    maxTurnAcceleration: 0.0035, // Ease into/out of a bank across mode changes
+    turnVelocity: 0,
     spinDir: 1, // 1 = clockwise, -1 = counter-clockwise
     activeWeight: 0,
     time: 0,
@@ -435,6 +504,7 @@
       this.index = index;
       this.total = total;
       this.isDragonMember = false;
+      this.dustGlance = null;
       this.dragonWeight = 0;
       this.memberIndex = -1; // position in the spine, or -1 if not a vertebra
       this.reset(true);
@@ -462,6 +532,7 @@
       this.orbitSpeedFactor = 0.82 + Math.random() * 0.36;
 
       this.isDragonMember = false;
+      this.dustGlance = null;
       this.dragonWeight = 0;
       this.memberIndex = -1;
     }
@@ -578,10 +649,27 @@
       } else if (ambientMode === 'flow') {
         const f = flowAt(this.x, this.y, dragon.time);
         const mix = 0.06;
-        this.baseVx += (f.x * this.orbitSpeedFactor - this.baseVx) * mix;
-        this.baseVy += (f.y * this.orbitSpeedFactor - this.baseVy) * mix;
-        this.vx += (this.baseVx - this.vx) * 0.08;
-        this.vy += (this.baseVy - this.vy) * 0.08;
+        if (this.dustGlance) {
+          // Keep Flow's speed response, but let the active departure own direction.
+          // Blending opposing field vectors here would brake dust before steering.
+          const baseSpeed = Math.hypot(this.baseVx, this.baseVy);
+          const speed = Math.hypot(this.vx, this.vy);
+          const nextBase = baseSpeed + (Math.hypot(f.x, f.y) * this.orbitSpeedFactor - baseSpeed) * mix;
+          const nextSpeed = speed + (nextBase - speed) * 0.08;
+          if (baseSpeed > 1e-12) {
+            this.baseVx *= nextBase / baseSpeed;
+            this.baseVy *= nextBase / baseSpeed;
+          }
+          if (speed > 1e-12) {
+            this.vx *= nextSpeed / speed;
+            this.vy *= nextSpeed / speed;
+          }
+        } else {
+          this.baseVx += (f.x * this.orbitSpeedFactor - this.baseVx) * mix;
+          this.baseVy += (f.y * this.orbitSpeedFactor - this.baseVy) * mix;
+          this.vx += (this.baseVx - this.vx) * 0.08;
+          this.vy += (this.baseVy - this.vy) * 0.08;
+        }
       } else {
         // Neutral chaos state / Ambient stars: Rapidly reset velocity back to ambient Brownian drift
         const resetSpeed = 0.12;
@@ -673,6 +761,7 @@
     dragon.activeWeight = dragon.idleWeight = dragon.sleepWeight = 0;
     dragon.figTheta = dragon.beatPhase = dragon.time = 0;
     dragon.spinDir = dragon.figDir = 1;
+    dragon.turnVelocity = 0;
     dragon.pursuing = false;
     articleFlight = null;
     dragon.head.x = width / 2;
@@ -1394,6 +1483,7 @@
           dragon.head.y = nearest.y;
           dragon.head.vx = nearest.vx;
           dragon.head.vy = nearest.vy;
+          dragon.turnVelocity = 0;
           dragon.history = [{ x: nearest.x, y: nearest.y }];
           nearest.isDragonMember = true;
           nearest.dragonWeight = 0.05; // Starts small, gently gathers

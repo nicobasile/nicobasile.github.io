@@ -43,12 +43,15 @@ function engine(mode = 'web', reduced = false, readingRect = null) {
   vm.runInContext(source.replace('  function init() {', `
     globalThis.inspect = () => ({ particles, dragon, accumulator, articleFlight, step: STEP_MS });
     globalThis.testHead = updateDragonHead;
+    globalThis.testSteer = steerHead;
+    globalThis.testWall = softenDragonWall;
+    globalThis.testBoundary = keepOutsideArticle;
     globalThis.testRoute = (a, b) => articleRoute(a, b, articleRail());
     globalThis.testCrosses = (a, b) => crossesArticle(a, b, articleBounds(0));
     globalThis.testRender = render;
     globalThis.setMode = setAmbientMode;
     function init() {`), sandbox);
-  return { window, document, preference, card, ctx, inspect: sandbox.inspect, render: sandbox.testRender, headStep: sandbox.testHead, route: sandbox.testRoute, crosses: sandbox.testCrosses, setMode: sandbox.setMode,
+  return { window, document, preference, card, ctx, inspect: sandbox.inspect, render: sandbox.testRender, headStep: sandbox.testHead, steer: sandbox.testSteer, wall: sandbox.testWall, boundary: sandbox.testBoundary, route: sandbox.testRoute, crosses: sandbox.testCrosses, setMode: sandbox.setMode,
     pending: () => callbacks.size, allocations: () => allocations, measurements: () => measurements,
     frame(time) { now = time; const jobs = [...callbacks.values()]; callbacks.clear(); jobs.forEach(fn => fn(now)); },
     move(x = 1000, y = 450) { window.emit('pointermove', { clientX: x, clientY: y }); } };
@@ -204,7 +207,8 @@ const soft = engine('web',false,{left:350,right:1090,top:160,bottom:740,width:74
 soft.frame(0);const dust=soft.inspect().particles[0];
 Object.assign(dust,{x:336,y:450,vx:1,vy:0,baseVx:1,baseVy:0,radius:2});
 soft.frame(soft.inspect().step);
-assert.ok(dust.vx>0&&dust.vx<0.9,'soft dust boundary remains');
+assert.ok(dust.vx>0&&dust.vx<1&&Math.abs(dust.vy)>0,'dust starts a glancing turn');
+assert.ok(Math.abs(Math.hypot(dust.vx,dust.vy)-1)<1e-10,'glancing preserves speed');
 const phone=engine('web',false,{left:20,right:370,top:140,bottom:4000,width:350});
 phone.window.innerWidth=390;phone.frame(0);phone.move(10,450);phone.frame(20);
 phone.move(200,450);
@@ -213,3 +217,104 @@ assert.equal(phone.inspect().dragon.members.length,0);
 assert.equal(phone.inspect().dragon.rig.length,0);
 assert.ok(phone.inspect().particles.every(p=>!(p.x>20&&p.x<370&&p.y>140&&p.y<4000)));
 console.log('PASS left/right gutter curves, five-second release, no hover re-recruitment, exit recovery, scrolling and mobile boundaries');
+
+// A mode may request exactly the opposite velocity. The shared steering layer
+// must turn continuously, keep moving, and eventually face the new direction.
+const smoothTurn = engine(); smoothTurn.frame(0);
+const turning = smoothTurn.inspect().dragon;
+Object.assign(turning.head,{x:720,y:450,vx:2,vy:0});
+let previousAngle=0, previousTurn=0;
+for(let i=0;i<180;i++) {
+  smoothTurn.steer(-2,0,0.075,2.4);
+  const angle=Math.atan2(turning.head.vy,turning.head.vx);
+  const change=Math.atan2(Math.sin(angle-previousAngle),Math.cos(angle-previousAngle));
+  assert.ok(Math.abs(change)<=turning.maxTurnRate+1e-9,'bounded heading change');
+  assert.ok(Math.abs(change-previousTurn)<=turning.maxTurnAcceleration+1e-9,'bounded banking acceleration');
+  assert.ok(Math.hypot(turning.head.vx,turning.head.vy)>1.5,'no stall-and-flip reversal');
+  previousAngle=angle;previousTurn=change;
+}
+assert.ok(turning.head.vx < -1.8,'completes the reversal');
+const wallTurn=engine('web',false,{left:350,right:1090,top:160,bottom:740,width:740});wallTurn.frame(0);
+const approaching={x:300,y:450,vx:2,vy:0.5};wallTurn.wall(approaching);
+assert.ok(approaching.vx>0&&approaching.vx<2,'turn begins before touching the wall');
+assert.ok(approaching.vy>0.5,'inward motion bends along the wall');
+console.log('PASS smooth 180-degree mode changes and early wall steering');
+
+const choreography = engine('flow'); choreography.frame(0); choreography.move(800,450);
+let lastHeading=null, leftLobe=false, rightLobe=false;
+for(let i=1;i<=1700;i++) {
+  choreography.frame(i*1000/90);
+  const d=choreography.inspect().dragon;
+  const heading=Math.atan2(d.head.vy,d.head.vx);
+  if(lastHeading!==null) {
+    const delta=Math.atan2(Math.sin(heading-lastHeading),Math.cos(heading-lastHeading));
+    assert.ok(Math.abs(delta)<=d.maxTurnRate+1e-8,'orbit-to-figure-eight heading stays continuous');
+  }
+  lastHeading=heading;
+  if(d.idleWeight>0.99) {
+    leftLobe ||= d.head.x < 700;
+    rightLobe ||= d.head.x > 900;
+  }
+}
+assert.ok(leftLobe&&rightLobe,'smoothed figure-eight still traverses both lobes');
+console.log('PASS continuous orbit-to-figure-eight transition and complete lobes');
+
+// Wall steering is checked independently of normal Web/Flow speed evolution.
+// Every invocation must preserve both velocity magnitudes, including correction
+// after a scroll. Real drift updates between calls must still permit departure.
+const dustRect={left:400,right:1000,top:200,bottom:700,width:600};
+const edges=[
+  {x:378,y:450,nx:-1,ny:0}, {x:1022,y:450,nx:1,ny:0},
+  {x:700,y:178,nx:0,ny:-1}, {x:700,y:722,nx:0,ny:1},
+  {x:385,y:185,nx:-Math.SQRT1_2,ny:-Math.SQRT1_2},
+  {x:1015,y:185,nx:Math.SQRT1_2,ny:-Math.SQRT1_2},
+  {x:385,y:715,nx:-Math.SQRT1_2,ny:Math.SQRT1_2},
+  {x:1015,y:715,nx:Math.SQRT1_2,ny:Math.SQRT1_2}
+];
+function distanceFromDustRect(p,r=dustRect,pad=6) {
+  return Math.hypot(Math.max(r.left-pad-p.x,0,p.x-r.right-pad),Math.max(r.top-pad-p.y,0,p.y-r.bottom-pad));
+}
+for(const mode of ['web','flow']) for(const edge of edges) for(const tangent of [-0.7,0,0.7]) {
+  const e=engine(mode,false,{...dustRect});e.frame(0);
+  const p=e.inspect().particles[0];
+  const vx=(-edge.nx-edge.ny*tangent)*0.42/Math.hypot(1,tangent);
+  const vy=(-edge.ny+edge.nx*tangent)*0.42/Math.hypot(1,tangent);
+  Object.assign(p,{x:edge.x,y:edge.y,vx,vy,baseVx:vx*0.7,baseVy:vy*0.7,radius:2,index:3,dustGlance:null});
+  let escaped=false;
+  for(let i=0;i<900;i++) {
+    e.inspect().dragon.time=i*0.016;
+    p.update();
+    const speed=Math.hypot(p.vx,p.vy),base=Math.hypot(p.baseVx,p.baseVy);
+    e.boundary(p,true);
+    assert.ok(Math.abs(Math.hypot(p.vx,p.vy)-speed)<1e-10, 'preserve current speed');
+    assert.ok(Math.abs(Math.hypot(p.baseVx,p.baseVy)-base)<1e-10, 'preserve base speed');
+    assert.ok(!(p.x>400&&p.x<1000&&p.y>200&&p.y<700),'remain outside article');
+    if(distanceFromDustRect(p)>=32){escaped=true;break;}
+  }
+  assert.ok(escaped, `${mode}/${JSON.stringify(edge)}/${tangent}: clears cushion`);
+}
+// Stable left/right choices and 25–40 degree departures, without random calls.
+for(const index of [0,1,7,15,39]) {
+  const e=engine('web',false,{...dustRect});e.frame(0);
+  const p={x:399,y:450,vx:0.42,vy:0,baseVx:0.21,baseVy:0,radius:2,index,isDragonMember:false};
+  e.boundary(p,false);
+  const angle=Math.atan2(-p.vx,Math.abs(p.vy))*180/Math.PI;
+  assert.ok(angle>=25-1e-8&&angle<=40+1e-8);
+  assert.ok(Math.abs(Math.hypot(p.vx,p.vy)-0.42)<1e-10);
+  assert.equal(Math.sign(p.vy),index%2?-1:1,'stable head-on tangent');
+  assert.equal(p.previousX,p.x,'geometry correction prevents interpolation through text');
+}
+// An actual scrolling rectangle displaces dust, and resize retains containment.
+const movingRect={...dustRect};const displaced=engine('flow',false,movingRect);displaced.frame(0);
+const dp=displaced.inspect().particles[0];Object.assign(dp,{x:380,y:450,vx:0.4,vy:0.1,baseVx:0.2,baseVy:0.1});
+movingRect.left=350;displaced.window.emit('scroll');displaced.frame(1);
+assert.ok(dp.x<=350||dp.x>=1000||dp.y<=200||dp.y>=700);
+assert.ok(dp.dustGlance,'scroll displacement sets an outward departure');
+movingRect.left=20;movingRect.right=370;movingRect.top=-1000;movingRect.bottom=2000;movingRect.width=350;
+displaced.window.innerWidth=390;displaced.window.emit('resize');displaced.frame(2);
+const narrow=displaced.inspect().particles[0];
+Object.assign(narrow,{x:12,y:450,vx:0.42,vy:0,baseVx:0.42,baseVy:0,radius:2,dustGlance:null});
+let clearedNarrow=false;
+for(let i=0;i<300;i++){narrow.update();displaced.boundary(narrow,true);if(narrow.x<6)clearedNarrow=true;assert.ok(narrow.x<=20||narrow.x>=370);}
+assert.ok(clearedNarrow,'clears scaled cushion in a phone gutter');
+console.log('PASS dust glancing at all edges/corners in Web and Flow, speed preservation, stable departure angles, scrolling and narrow gutters');

@@ -144,7 +144,14 @@ before the fix. The existing particle simulation/lifecycle tests still apply.
 
 ### Reading-page particles
 
-Dust turns softly away from article walls. Entering the article starts a single flowing
+Dust glances off article walls, then drifts into open space without boundary braking.
+Within a 32 px cushion (scaled down in narrow gutters), it keeps its tangential
+direction and turns toward a stable per-particle departure angle of 25–40°.
+Both current velocity and base drift retain their speed through the turn. Flow
+keeps its speed response but yields direction until the dust clears the cushion.
+Scrolling and resizing still correct collisions immediately.
+
+Entering the article starts a single flowing
 Bezier sweep in whichever gutter the dragon already occupied (left or right).
 The side and five-second timer stay fixed even if the pointer moves across the
 text. After five seconds, the spine and wing particles dissolve back into ambient
@@ -155,3 +162,10 @@ edge-following or resting pose.
 Tune `ARTICLE.releaseDelay` (milliseconds), `ARTICLE.dragonCushion` (early wall steering), and `ARTICLE.cushion` in
 `assets/particles.js`. The curve fits the available gutter width, and scroll and
 resize refresh the obstacle geometry.
+
+Dragon steering shares a heading-rate and banking-acceleration limit across
+pursuit, orbit, figure-eight, sleep, and article flight. Opposing mode targets
+produce a continuous turn rather than canceling velocity and flipping the head.
+Tune `dragon.maxTurnRate` and `dragon.maxTurnAcceleration` for tighter or gentler
+turns. Article flight uses one open curve, and the dragon begins steering along
+article walls before contact to leave more room for its body.
