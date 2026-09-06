@@ -144,6 +144,12 @@ before the fix. The existing particle simulation/lifecycle tests still apply.
 
 ### Reading-page particles
 
+On initial load, dust is distributed by available area outside the padded article
+and its steering cushion, rather than starting behind it and being pushed to its
+edges. Narrow gutters use a smaller cushion. The dragon stays dormant if the
+first pointer position is over the article; moving outside enables its usual
+pursuit and subsequent five-second article flight.
+
 Dust glances off article walls, then drifts into open space without boundary braking.
 Within a 32 px cushion (scaled down in narrow gutters), it keeps its tangential
 direction and turns toward a stable per-particle departure angle of 25–40°.

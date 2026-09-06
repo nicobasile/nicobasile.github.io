@@ -318,3 +318,29 @@ let clearedNarrow=false;
 for(let i=0;i<300;i++){narrow.update();displaced.boundary(narrow,true);if(narrow.x<6)clearedNarrow=true;assert.ok(narrow.x<=20||narrow.x>=370);}
 assert.ok(clearedNarrow,'clears scaled cushion in a phone gutter');
 console.log('PASS dust glancing at all edges/corners in Web and Flow, speed preservation, stable departure angles, scrolling and narrow gutters');
+
+// Reloading an article seeds the available area, not the collision perimeter.
+for (const mode of ['web','flow']) for (const viewport of [1440,390]) {
+  const rect={left:viewport===390?20:400,right:viewport===390?370:1000,
+    top:-1000,bottom:2000,width:viewport===390?350:600};
+  const e=engine(mode,false,rect);e.window.innerWidth=viewport;e.frame(0);
+  const initial=e.inspect().particles;
+  assert.equal(initial.length,viewport===390?60:120);
+  for(const p of initial) {
+    assert.ok(p.x>=0&&p.x<=viewport&&p.y>=0&&p.y<=900,'spawn in visible free space');
+    assert.ok(p.x<rect.left-p.radius-4 || p.x>rect.right+p.radius+4,'spawn outside padded article');
+    assert.equal(p.dustGlance,null,'no startup collision projection');
+    assert.equal(p.previousX,p.x);assert.equal(p.previousY,p.y);
+  }
+  assert.ok(new Set(initial.map(p=>Math.round(p.x*100))).size>initial.length*.9,'no edge concentration');
+  e.move((rect.left+rect.right)/2,450);
+  for(let i=1;i<=90;i++)e.frame(i*1000/60);
+  assert.equal(e.inspect().dragon.activeWeight,0,'first pointer inside article does not summon dragon');
+  assert.equal(e.inspect().dragon.members.length,0);
+  assert.equal(e.inspect().articleFlight,null);
+  e.move(rect.left-10,450);e.frame(1517);
+  assert.ok(e.inspect().dragon.activeWeight>0,'leaving article enables normal dragon');
+  e.move((rect.left+rect.right)/2,450);e.frame(1534);
+  assert.ok(e.inspect().articleFlight,'subsequent article entry keeps the gutter flight');
+}
+console.log('PASS article reload placement and initial-hover dragon suppression on desktop/mobile in both modes');

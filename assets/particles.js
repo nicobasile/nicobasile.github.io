@@ -85,6 +85,7 @@
   // current gutter briefly while the cursor is over the text.
   const readingEl = document.querySelector('article.post.detailed, article.page.detailed');
   const isReadingPage = !!readingEl;
+  let readingDragonArmed = !isReadingPage;
   let articleRect = null;
   let articleRectDirty = true;
 
@@ -103,7 +104,7 @@
   }
 
   function dragonCanHunt() {
-    return mouse.active && !activeCard && !isHeaderHovered &&
+    return readingDragonArmed && mouse.active && !activeCard && !isHeaderHovered &&
       (!articleFlight || !articleFlight.releasing);
   }
 
@@ -114,6 +115,38 @@
     if (!articleRect || articleRect.width === 0) return null;
     return { left: articleRect.left - padding, right: articleRect.right + padding,
       top: articleRect.top - padding, bottom: articleRect.bottom + padding };
+  }
+
+  // Sample clear viewport regions by area, rather than projecting random
+  // starting points onto the wall. Include a gutter-scaled steering cushion.
+  function placeInitialDust(p) {
+    const r = articleBounds(p.radius + 4);
+    if (!r) return;
+    const cushion = space => Math.min(ARTICLE.cushion, Math.max(0, space) * 0.55);
+    const left = Math.max(0, Math.min(width, r.left - cushion(r.left)));
+    const right = Math.max(0, Math.min(width, r.right + cushion(width-r.right)));
+    const top = Math.max(0, Math.min(height, r.top - cushion(r.top)));
+    const bottom = Math.max(0, Math.min(height, r.bottom + cushion(height-r.bottom)));
+    const regions = [[0,0,width,top], [0,bottom,width,height-bottom],
+      [0,top,left,bottom-top], [right,top,width-right,bottom-top]];
+    const area = regions.reduce((sum, r) => sum + r[2]*r[3], 0);
+    if (area > 0) {
+      let pick = Math.random()*area;
+      for (const [x,y,w,h] of regions) {
+        const size=w*h;
+        if (size > 0 && pick < size) {
+          p.x=x+Math.random()*w; p.y=y+Math.random()*h;
+          break;
+        }
+        pick-=size;
+      }
+    } else {
+      // No visible free space: keep dust offscreen instead of piling it on text.
+      p.x = r.left - ARTICLE.cushion - 1;
+      p.y = Math.random()*height;
+    }
+    p.previousX = p.renderX = p.x;
+    p.previousY = p.renderY = p.y;
   }
 
   function insideRect(p, r) {
@@ -277,7 +310,7 @@
   }
 
   function updateArticleFlight(now) {
-    if (!isOverArticle() || !mouse.active || activeCard || isHeaderHovered) {
+    if (!readingDragonArmed || !isOverArticle() || !mouse.active || activeCard || isHeaderHovered) {
       articleFlight = null;
       return;
     }
@@ -535,6 +568,7 @@
       this.dustGlance = null;
       this.dragonWeight = 0;
       this.memberIndex = -1;
+      if (initial) placeInitialDust(this);
     }
 
     update() {
@@ -786,6 +820,7 @@
     canvas.style.height = height + 'px';
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
+    refreshArticleRect();
     dragonLength = width < 640 ? 14 : 20;
     const targetCount = width < 640 ? 60 : 120;
     if (particles.length !== targetCount) {
@@ -1755,7 +1790,10 @@
     mouse.x = e.clientX;
     mouse.y = e.clientY;
     refreshArticleRect();
-    if (!isOverArticle()) articleFlight = null;
+    if (!isOverArticle()) {
+      articleFlight = null;
+      readingDragonArmed = true;
+    }
     if (!mouse.hasMoved) {
       dragon.head.x = e.clientX;
       dragon.head.y = e.clientY;
