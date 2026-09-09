@@ -6,6 +6,9 @@ $rule: #d8dad2;
 $serif: Georgia, "Times New Roman", serif;
 
 .particle-canvas { opacity: 0.48; }
+@media (width < 640px) {
+  .particle-canvas { opacity: 0.24; }
+}
 .wrapper-masthead {
   position: relative;
   background: transparent;

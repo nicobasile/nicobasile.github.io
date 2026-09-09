@@ -75,7 +75,8 @@
     count: window.innerWidth < 640 ? 60 : 120,
     maxDistance: 95,
     damping: 0.965,
-    ambientSpeed: 0.45
+    ambientSpeed: 0.45,
+    dustMovementScale: 0.8
   };
 
   // State for active card, header, and reading column
@@ -132,7 +133,7 @@
   }
 
   function dragonCanHunt() {
-    return readingDragonArmed && mouse.active && !activeCard && !isHeaderHovered &&
+    return width >= 640 && readingDragonArmed && mouse.active && !activeCard && !isHeaderHovered &&
       (!articleFlight || !articleFlight.releasing);
   }
 
@@ -340,7 +341,7 @@
   }
 
   function updateArticleFlight(now) {
-    if (!readingDragonArmed || !isOverArticle() || !mouse.active || activeCard || isHeaderHovered) {
+    if (width < 640 || !readingDragonArmed || !isOverArticle() || !mouse.active || activeCard || isHeaderHovered) {
       articleFlight = null;
       return;
     }
@@ -753,8 +754,10 @@
         }
       }
 
-      this.x += this.vx;
-      this.y += this.vy;
+      // Slow dust (including hover motion) without changing dragon physics.
+      const movementScale = this.isDragonMember ? 1 : config.dustMovementScale;
+      this.x += this.vx * movementScale;
+      this.y += this.vy * movementScale;
 
       // 5. Viewport boundary wrapping
       // A wrap is a discontinuity: never interpolate across the viewport.
@@ -863,7 +866,7 @@
 
     refreshArticleRect();
     dragonLength = width < 640 ? 14 : 20;
-    const targetCount = width < 640 ? 60 : 120;
+    const targetCount = Math.round((width < 640 ? 60 : 120) * (isReadingPage ? 0.7 : 1));
     if (particles.length !== targetCount) {
       resetDragon();
       particles = Array.from({ length: targetCount }, (_, i) => new Particle(i, targetCount));

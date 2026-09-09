@@ -142,6 +142,10 @@ without competing test browsers. On the tested 120 Hz Mac, the fixed pages
 averaged 8.3–8.5 ms per frame with p95 at 9.2–9.3 ms, versus roughly 67 ms stalls
 before the fix. The existing particle simulation/lifecycle tests still apply.
 
+Below 640 px, the dragon is disabled on every page and particle-canvas opacity
+is 0.24 (desktop: 0.48). Resizing across the breakpoint resets the dragon;
+returning to desktop restores normal activation. Dust physics and counts are unchanged.
+
 ### Reading-page particles
 
 The dragon ignores article walls while the cursor is outside the article's 6 px
@@ -183,3 +187,7 @@ produce a continuous turn rather than canceling velocity and flipping the head.
 Tune `dragon.maxTurnRate` and `dragon.maxTurnAcceleration` for tighter or gentler
 turns. Article flight uses one open curve, and the dragon begins steering along
 article walls before contact to leave more room for its body.
+
+Particle density is 84 on desktop reading pages and 42 on mobile reading pages
+(30% below the usual 120/60). `config.dustMovementScale` is 0.8 on all pages,
+reducing dust movement by 20% while dragon members retain their full speed.

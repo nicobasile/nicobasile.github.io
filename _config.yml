@@ -3,10 +3,10 @@
 #
 
 # Name of your site (displayed in the header)
-name: Nico Basile
+name: Nicolas Basile
 
 # Used by jekyll-seo-tag and jekyll-feed, which read site.title rather than site.name
-title: Nico Basile
+title: Nicolas Basile
 
 lang: en
 locale: en_US

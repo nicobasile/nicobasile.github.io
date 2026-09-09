@@ -327,7 +327,7 @@ for (const mode of ['web','flow']) for (const viewport of [1440,390]) {
     top:-1000,bottom:2000,width:viewport===390?350:600};
   const e=engine(mode,false,rect);e.window.innerWidth=viewport;e.frame(0);
   const initial=e.inspect().particles;
-  assert.equal(initial.length,viewport===390?60:120);
+  assert.equal(initial.length,viewport===390?42:84);
   for(const p of initial) {
     assert.ok(p.x>=0&&p.x<=viewport&&p.y>=0&&p.y<=900,'spawn in visible free space');
     assert.ok(p.x<rect.left-p.radius-4 || p.x>rect.right+p.radius+4,'spawn outside padded article');
@@ -341,9 +341,9 @@ for (const mode of ['web','flow']) for (const viewport of [1440,390]) {
   assert.equal(e.inspect().dragon.members.length,0);
   assert.equal(e.inspect().articleFlight,null);
   e.move(rect.left-15,450);e.frame(1517);
-  assert.ok(e.inspect().dragon.activeWeight>0,'leaving article enables normal dragon');
+  assert.equal(e.inspect().dragon.activeWeight>0,viewport>=640,'dragon only enabled on desktop');
   e.move((rect.left+rect.right)/2,450);e.frame(1534);
-  assert.ok(e.inspect().articleFlight,'subsequent article entry keeps the gutter flight');
+  assert.equal(!!e.inspect().articleFlight,viewport>=640,'article flight only enabled on desktop');
 }
 console.log('PASS article reload placement and initial-hover dragon suppression on desktop/mobile in both modes');
 
@@ -372,3 +372,32 @@ for(const [x,y,vx,vy,mx,my] of [[390,450,2,0,390,450],[1010,450,-2,0,1010,450],[
   wall.window.innerWidth=390;wall.window.emit('resize');wall.frame(20);assert.equal(wall.dragonCanvas.width,780);
 }
 console.log('PASS all-edge unrestricted steering and foreground canvas resize');
+
+for(const mode of ['web','flow']) {
+  const e=engine(mode);e.frame(0);e.move(500,450);
+  for(let i=1;i<=90;i++)e.frame(i*1000/90);
+  assert.ok(e.inspect().dragon.members.length>0);
+  e.window.innerWidth=639;e.window.emit('resize');e.frame(1012);
+  assert.equal(e.inspect().dragon.activeWeight,0);assert.equal(e.inspect().dragon.rig.length,0);
+  assert.equal(e.inspect().dragon.members.length,0);assert.equal(e.inspect().particles.length,60);
+  e.move(300,400);e.window.emit('pointerdown',{clientX:300,clientY:400});
+  for(let i=1;i<=180;i++)e.frame(1012+i*1000/90);
+  assert.equal(e.inspect().dragon.activeWeight,0);assert.equal(e.inspect().dragon.members.length,0);
+  assert.equal(e.inspect().articleFlight,null);
+  e.window.innerWidth=640;e.window.emit('resize');e.frame(3024);e.move(300,450);e.frame(3040);
+  assert.ok(e.inspect().dragon.activeWeight>0);assert.equal(e.inspect().particles.length,120);
+}
+console.log('PASS mobile dragon suppression, taps, and 639/640 px breakpoint transitions');
+
+for (const mode of ['web','flow']) {
+  const e=engine(mode);e.frame(0);
+  const p=e.inspect().particles[0];
+  for(const member of [false,true]) {
+    Object.assign(p,{x:500,y:450,vx:.4,vy:.2,baseVx:.4,baseVy:.2,isDragonMember:member,dragonWeight:member?1:0});
+    p.update();
+    const scale=member?1:.8;
+    assert.ok(Math.abs(p.x-500-p.vx*scale)<1e-10);
+    assert.ok(Math.abs(p.y-450-p.vy*scale)<1e-10);
+  }
+}
+console.log('PASS 20% dust movement reduction with unchanged dragon movement');
