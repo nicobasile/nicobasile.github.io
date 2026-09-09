@@ -46,9 +46,8 @@ footer-links:
 # Google Analytics 4 measurement ID, e.g. G-GABC1DEFG
 #google_analytics_ga4:
 
-# Your website URL (e.g. http://amitmerchant1990.github.io or http://www.amitmerchant.com)
 # Used for Sitemap.xml and your RSS feed
-url: https://nicobasile.github.io
+url: https://nicobasile.com
 enforce_ssl:
 
 twitter:
