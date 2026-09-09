@@ -15,7 +15,7 @@ media_alt_2: "Exp. E top view: confident pick-and-place after golden-ratio mixin
 findings:
   - stat: "8% → 84%"
     label: Pick-and-place success
-  - stat: "15 / 35 / 50"
+  - stat: "15% / 35% / 50%"
     label: Real / aug / sim mix
   - stat: "N = 25"
     label: Eval rollouts
