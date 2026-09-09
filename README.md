@@ -195,3 +195,8 @@ reducing dust movement by 20% while dragon members retain their full speed.
 Dragon members fly continuously beyond viewport edges and return along their normal
 orbits. Only ambient dust wraps to the opposite edge, including particles released
 from the dragon offscreen. Article-specific constraints still apply.
+
+Homepage card hover forms a broad clockwise spiral cloud. Particles have varied
+orbital distances, slow radial drift, and faster inner circulation. A weak local
+separation force loosens tight clumps without assigning slots or equal spacing.
+The card remains solid, but its perimeter does not define the orbit.

@@ -604,76 +604,37 @@
     }
 
     update() {
-      // 1. Hovering a Blog Post Card: Pure Rectangular Gravity, Solid Box Blocking & Perimeter Orbit
+      // 1. A broad, shearing spiral around the card, not a perimeter track.
       if (activeCard && activeCardRect) {
         const rect = activeCardRect;
-        const pad = Math.max(8, 18 + this.orbitOffset);
-        const boxLeft = rect.left - pad;
-        const boxRight = rect.right + pad;
-        const boxTop = rect.top - pad;
-        const boxBottom = rect.bottom + pad;
-
-        const cxEdge = Math.max(boxLeft, Math.min(this.x, boxRight));
-        const cyEdge = Math.max(boxTop, Math.min(this.y, boxBottom));
-
-        const dx = this.x - cxEdge;
-        const dy = this.y - cyEdge;
-        const distToBox = Math.sqrt(dx * dx + dy * dy);
-
-        const isInside = this.x >= boxLeft && this.x <= boxRight && this.y >= boxTop && this.y <= boxBottom;
-
-        if (isInside) {
-          // Immediately eject particle to the nearest outer edge of the rectangle
-          const dLeft = this.x - boxLeft;
-          const dRight = boxRight - this.x;
-          const dTop = this.y - boxTop;
-          const dBottom = boxBottom - this.y;
-          const minD = Math.min(dLeft, dRight, dTop, dBottom);
-
-          if (minD === dLeft) {
-            this.x = boxLeft;
-            this.vx = Math.min(this.vx, 0) - 0.8;
-            this.vy -= 0.3;
-          } else if (minD === dRight) {
-            this.x = boxRight;
-            this.vx = Math.max(this.vx, 0) + 0.8;
-            this.vy += 0.3;
-          } else if (minD === dTop) {
-            this.y = boxTop;
-            this.vy = Math.min(this.vy, 0) - 0.8;
-            this.vx += 0.3;
-          } else {
-            this.y = boxBottom;
-            this.vy = Math.max(this.vy, 0) + 0.8;
-            this.vx -= 0.3;
-          }
-        } else {
-          const nx = distToBox > 0.001 ? dx / distToBox : 0;
-          const ny = distToBox > 0.001 ? dy / distToBox : -1;
-
-          // Tangential direction: 90 deg clockwise around the rectangle
-          const tx = -ny;
-          const ty = nx;
-
-          // Inward gravity toward nearest edge
-          const slowGravity = 0.075;
-          this.vx -= nx * slowGravity;
-          this.vy -= ny * slowGravity;
-
-          // Perimeter conveyer swirl
-          const swirlFactor = Math.max(0.12, 1 - distToBox / 420);
-          const swirlStrength = 0.38 * swirlFactor * this.orbitSpeedFactor;
-          this.vx += tx * swirlStrength;
-          this.vy += ty * swirlStrength;
-
-          // Boundary cushion
-          const cushion = 34;
-          if (distToBox < cushion && distToBox > 0.001) {
-            const pushFactor = (1 - distToBox / cushion) * 0.65;
-            this.vx += nx * pushFactor;
-            this.vy += ny * pushFactor;
-          }
+        const rx = (rect.right - rect.left) / 2 + 26;
+        const ry = (rect.bottom - rect.top) / 2 + 26;
+        const cx = (rect.left + rect.right) / 2, cy = (rect.top + rect.bottom) / 2;
+        const obstacle = {left:rect.left-6,right:rect.right+6,top:rect.top-6,bottom:rect.bottom+6};
+        if (insideRect(this, obstacle)) {
+          const edge = nearestEdge(this, obstacle);
+          this.x = edge.x; this.y = edge.y;
+          this.previousX = this.x; this.previousY = this.y;
         }
+        const dx = this.x-cx, dy = this.y-cy;
+        const rho = Math.hypot(dx/rx,dy/ry) || 0.001;
+        const theta = Math.atan2(dy/ry,dx/rx);
+        const phase = this.index * 2.399963229728653;
+        // Different preferred distances, with slow radial breathing and a loose
+        // two-arm perturbation. Inner particles circulate faster than outer ones.
+        const spread = (this.orbitOffset+11)/22;
+        const radius = 1.08 + spread*0.68 +
+          0.12*Math.sin(dragon.time*0.24+phase) +
+          0.08*Math.sin(theta*2-rho*2-dragon.time*0.18);
+        const radial = Math.max(-1.1,Math.min(1.1,(radius-rho)*Math.min(rx,ry)*0.018));
+        const tx = -rx*Math.sin(theta), ty = ry*Math.cos(theta);
+        const tangentLength = Math.hypot(tx,ty) || 1;
+        const distance = Math.hypot(dx,dy) || 1;
+        const speed = 2.7*this.orbitSpeedFactor/Math.sqrt(Math.max(1,rho/1.5));
+        const desiredX = tx/tangentLength*speed + dx/distance*radial;
+        const desiredY = ty/tangentLength*speed + dy/distance*radial;
+        this.vx += (desiredX-this.vx)*0.035;
+        this.vy += (desiredY-this.vy)*0.035;
       } else if (pointAttractor.active) {
         // 2. Hovering navigation links
         const dx = pointAttractor.x - this.x;
@@ -686,7 +647,7 @@
 
       // 3. Speed limiter & damping per mode
       if (activeCard) {
-        // Blog post card hover - keep exact current good speed and fluid damping
+        // Preserve the hover speed ceiling and momentum while following the swirl.
         const maxSpeed = 3.4;
         const currentSpeed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
         if (currentSpeed > maxSpeed) {
@@ -892,7 +853,7 @@
         const distSq = dx * dx + dy * dy;
         if (distSq >= 24 * 24 || distSq <= 0.000001) continue;
         const dist = Math.sqrt(distSq);
-        const strength = (1 - dist / 24) * 0.38;
+        const strength = (1 - dist / 24) * 0.06;
         const rx = dx / dist * strength;
         const ry = dy / dist * strength;
         p1.vx += rx;

@@ -452,3 +452,21 @@ for (const mode of ['web', 'flow']) {
   near(snapshot(hovered), snapshot(control), mode + '/header exit preserves dragon');
 }
 console.log('PASS header entry/exit preserves the dragon in both ambient modes');
+
+// Card-hover particles occupy a broad rotating cloud rather than a thin track.
+for(const mode of ['web','flow']) for(const [w,h,viewport] of [[500,240,1440],[240,500,1440],[300,320,390]]) {
+  const e=engine(mode);e.window.innerWidth=viewport;
+  const rect={left:(viewport-w)/2,right:(viewport+w)/2,top:280-h/2,bottom:280+h/2};
+  e.card.getBoundingClientRect=()=>({...rect});e.frame(0);e.card.emit('mouseenter');
+  for(let i=1;i<=1800;i++)e.frame(i*1000/90);
+  const radii=e.inspect().particles.map(p=>Math.hypot((p.x-viewport/2)/(w/2+26),(p.y-280)/(h/2+26))).sort((a,b)=>a-b);
+  assert.ok(radii[Math.floor(radii.length*.9)]-radii[Math.floor(radii.length*.1)]>.3,'broad radial distribution');
+  assert.ok(e.inspect().particles.every(p=>Number.isFinite(p.x)&&Number.isFinite(p.y)));
+  const before=e.inspect().particles.map(p=>[p.x,p.y]);
+  e.card.emit('mouseleave',{relatedTarget:null});
+  assert.deepEqual(e.inspect().particles.map(p=>[p.x,p.y]),before,'hover exit does not reset positions');
+  rect.left+=30;rect.right+=30;e.card.emit('mouseenter');e.window.emit('scroll');e.frame(20020);
+  e.window.innerWidth=800;e.window.emit('resize');e.frame(20040);
+  assert.ok(e.inspect().particles.every(p=>Number.isFinite(p.vx)&&Number.isFinite(p.vy)));
+}
+console.log('PASS broad galaxy-hover distribution, exit continuity, scrolling and resize in both modes');
