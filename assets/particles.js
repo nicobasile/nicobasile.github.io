@@ -623,7 +623,7 @@
         // Different preferred distances, with slow radial breathing and a loose
         // two-arm perturbation. Inner particles circulate faster than outer ones.
         const spread = (this.orbitOffset+11)/22;
-        const radius = 1.08 + spread*0.68 +
+        const radius = 1.3 + spread*0.68 +
           0.12*Math.sin(dragon.time*0.24+phase) +
           0.08*Math.sin(theta*2-rho*2-dragon.time*0.18);
         const radial = Math.max(-1.1,Math.min(1.1,(radius-rho)*Math.min(rx,ry)*0.018));
