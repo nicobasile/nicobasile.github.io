@@ -7,7 +7,7 @@
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 
     <link rel="stylesheet" type="text/css" href="{{ site.baseurl }}/assets/style.css" />
     <link rel="alternate" type="application/rss+xml" title="{{ site.name }} - {{ site.tagline | default: site.description }}" href="{{ site.baseurl }}/feed.xml" />
@@ -26,15 +26,15 @@
       <canvas id="dragon-canvas" class="particle-canvas dragon-canvas" aria-hidden="true"></canvas>
       <header class="wrapper-masthead">
         <div class="container masthead-inner">
-          <div class="masthead-brand">
-            <a href="{{ site.baseurl }}/" class="site-avatar" aria-label="Homepage">
+          <a href="{{ site.baseurl }}/" class="masthead-brand" aria-label="Nicolas Basile — Homepage">
+            <span class="site-avatar">
               {% include media.html url=site.avatar alt="Nicolas Basile" eager=true sizes="48px" %}
-            </a>
+            </span>
             <div class="site-info">
-              <div class="site-name"><a href="{{ site.baseurl }}/">Nicolas Basile</a></div>
+              <div class="site-name">Nicolas Basile</div>
               <p class="site-description">{{ site.tagline | default: site.description }}</p> 
             </div>
-          </div>
+          </a>
 
           <nav class="site-nav" aria-label="Main navigation">
             <a href="{{ site.baseurl }}/">Home</a>

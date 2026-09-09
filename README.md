@@ -191,3 +191,7 @@ article walls before contact to leave more room for its body.
 Particle density is 84 on desktop reading pages and 42 on mobile reading pages
 (30% below the usual 120/60). `config.dustMovementScale` is 0.8 on all pages,
 reducing dust movement by 20% while dragon members retain their full speed.
+
+Dragon members fly continuously beyond viewport edges and return along their normal
+orbits. Only ambient dust wraps to the opposite edge, including particles released
+from the dragon offscreen. Article-specific constraints still apply.

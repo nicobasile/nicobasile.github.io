@@ -1,56 +1,41 @@
-//
-// DESIGN TOKENS & VARIABLES
-//
-
-// Backgrounds & Surfaces
-$bg-base: #f8f7f4;
-$bg-surface: rgba(255, 255, 255, 0.03);
-$bg-surface-hover: rgba(255, 255, 255, 0.06);
-$bg-card: rgba(15, 23, 42, 0.55);
-$bg-card-hover: rgba(22, 33, 62, 0.7);
-$bg-code: #0b1120;
-
-// Borders
-$border-subtle: rgba(42, 46, 39, 0.15);
-$border-hover: rgba(99, 102, 241, 0.35);
-$border-strong: rgba(255, 255, 255, 0.16);
-
-// Typography / Text Colors
-$text-primary: #30312e;
-$text-secondary: #595c56;
-$text-muted: #6c6e67;
-$text-heading: #242622;
-
-// Accents
+// Editorial design tokens. All paper surfaces share this palette.
+$paper: #f8f7f4;
+$ink: #242622;
+$muted: #62655d;
+$rule: #d8dad2;
+$surface: #eeefe9;
+$selection: #dbe4d6;
 $accent-primary: #365b53;
-$accent-cyan: #365b53;
-$accent-purple: #c084fc;
-$accent-pink: #f472b6;
-$accent-glow: rgba(99, 102, 241, 0.25);
+$accent-hover: #1f443a;
+$text-primary: #30312e;
+$text-secondary: #484c44;
+$text-muted: $muted;
+$text-heading: $ink;
+$bg-base: $paper;
+$border-subtle: $rule;
+$accent-cyan: $accent-primary;
+$content-width: 780px;
+$gutter: 20px;
 
-// Backward Compatibility Variables for Legacy Rules
-$blue: $accent-cyan;
-$black: #000;
-$darkerGray: $text-heading;
-$darkGray: $text-primary;
-$gray: $text-secondary;
-$lightGray: rgba(42, 46, 39, 0.15);
-$white: $text-primary;
+$font-serif: Georgia, "Times New Roman", serif;
+$font-sans:
+  "Inter",
+  -apple-system,
+  BlinkMacSystemFont,
+  "Segoe UI",
+  Roboto,
+  "Helvetica Neue",
+  Arial,
+  sans-serif;
+$font-mono:
+  "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+  "Liberation Mono", "Courier New", monospace;
 
-// Font stacks
-$font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-$font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-$helvetica: $font-sans;
-$helveticaNeue: $font-sans;
-$georgia: Georgia, serif;
-
-// Mobile breakpoints
 @mixin mobile {
   @media screen and (max-width: 640px) {
     @content;
   }
 }
-
 @mixin tablet {
   @media screen and (max-width: 860px) {
     @content;

@@ -1,0 +1,56 @@
+// Robot crop controls. Set these on either wrapper (or an individual video cell).
+.crop-robot {
+  --crop-ratio: 16 / 9;
+  --crop-position: 150% 60%;
+  --crop-zoom: 1.05;
+}
+
+// A fixed clipping window; video dimensions cannot expand it.
+.post-card-media-grid.crop-robot .post-card-media-item,
+.post-hero-cell.crop-robot {
+  position: relative;
+  aspect-ratio: var(--crop-ratio);
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  clip-path: inset(0 round 3px);
+}
+
+.post-card-media-grid.crop-robot .post-card-media-asset,
+.post-hero-cell.crop-robot video {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: var(--crop-position);
+  transform: scale(var(--crop-zoom));
+  transform-origin: var(--crop-position);
+}
+
+// Fill matching inline frames; fullscreen retains the encoded GIF framing.
+.post-card-media-grid.frame-matched .post-card-media-item,
+.post-hero-cell.frame-matched {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: $paper;
+}
+.post-card-media-grid.frame-matched .post-card-media-asset,
+.post-hero-cell.frame-matched video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  transform: none;
+}
+
+.post-hero-cell.frame-matched video:fullscreen {
+  object-fit: contain;
+  background: #000;
+}

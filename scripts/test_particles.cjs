@@ -31,9 +31,10 @@ function engine(mode = 'web', reduced = false, readingRect = null) {
   const card = events({ contains: () => false, getBoundingClientRect: () => {
     measurements++; return { left: 400, right: 800, top: 250, bottom: 600 };
   } });
+  const header = events();
   const document = events({ hidden: false, readyState: 'complete',
     getElementById: id => id === 'particle-canvas' ? canvas : id === 'dragon-canvas' ? dragonCanvas : null,
-    querySelector: selector => readingRect && selector.startsWith('article.') ? { getBoundingClientRect: () => readingRect } : null, querySelectorAll: selector => selector === '.post-card' ? [card] : [] });
+    querySelector: selector => selector === '.wrapper-masthead' ? header : readingRect && selector.startsWith('article.') ? { getBoundingClientRect: () => readingRect } : null, querySelectorAll: selector => selector === '.post-card' ? [card] : [] });
   const window = events({ innerWidth: 1440, innerHeight: 900, devicePixelRatio: 2, matchMedia: () => preference });
   const sandbox = { Math: math, performance: { now: () => now }, window, document,
     localStorage: { getItem: () => mode, setItem() {} },
@@ -52,7 +53,7 @@ function engine(mode = 'web', reduced = false, readingRect = null) {
     globalThis.testRender = render;
     globalThis.setMode = setAmbientMode;
     function init() {`), sandbox);
-  return { window, document, preference, card, ctx, dragonCanvas, inspect: sandbox.inspect, render: sandbox.testRender, headStep: sandbox.testHead, steer: sandbox.testSteer, wall: sandbox.testWall, boundary: sandbox.testBoundary, route: sandbox.testRoute, crosses: sandbox.testCrosses, setMode: sandbox.setMode,
+  return { window, document, preference, card, header, ctx, dragonCanvas, inspect: sandbox.inspect, render: sandbox.testRender, headStep: sandbox.testHead, steer: sandbox.testSteer, wall: sandbox.testWall, boundary: sandbox.testBoundary, route: sandbox.testRoute, crosses: sandbox.testCrosses, setMode: sandbox.setMode,
     pending: () => callbacks.size, allocations: () => allocations, measurements: () => measurements,
     frame(time) { now = time; const jobs = [...callbacks.values()]; callbacks.clear(); jobs.forEach(fn => fn(now)); },
     move(x = 1000, y = 450) { window.emit('pointermove', { clientX: x, clientY: y }); } };
@@ -401,3 +402,53 @@ for (const mode of ['web','flow']) {
   }
 }
 console.log('PASS 20% dust movement reduction with unchanged dragon movement');
+
+for(const mode of ['web','flow']) for(const [x,y,vx,vy] of [
+  [-26,450,-2,0],[1466,450,2,0],[700,-26,0,-2],[700,926,0,2],
+  [-26,-26,-2,-2],[1466,-26,2,-2],[-26,926,-2,2],[1466,926,2,2]]) {
+  const e=engine(mode);e.frame(0);const p=e.inspect().particles[0];
+  Object.assign(p,{x,y,previousX:x-1,previousY:y-1,vx,vy,isDragonMember:true,dragonWeight:1});
+  p.update();
+  assert.ok(Math.abs(p.x-x-p.vx)<1e-9&&Math.abs(p.y-y-p.vy)<1e-9,'offscreen member retains continuous motion');
+  assert.equal(p.previousX,x-1);assert.equal(p.previousY,y-1);
+  p.isDragonMember=false;p.update();
+  assert.ok(p.x>=-25&&p.x<=1465&&p.y>=-25&&p.y<=925,'released dust resumes wrapping');
+  assert.equal(p.previousX,p.x);assert.equal(p.previousY,p.y);
+}
+console.log('PASS offscreen member continuity and released dust wrapping at all edges/corners');
+for(const mode of ['web','flow']) for(const [x,y] of [[1,450],[1439,450],[720,1],[720,899],[1,1],[1439,1],[1,899],[1439,899]]) {
+  const e=engine(mode);e.frame(0);e.move(x,y);
+  let outside=false,returned=false;
+  for(let i=1;i<=1400;i++) {
+    const d=e.inspect().dragon;
+    const prior=new Map(e.inspect().particles.filter(p=>p.isDragonMember&&p.dragonWeight>.85).map(p=>[p,{x:p.x,y:p.y}]));
+    e.frame(i*1000/90);
+    for(const [p,old] of prior) if(p.isDragonMember) assert.ok(Math.hypot(p.x-old.x,p.y-old.y)<100,'no viewport-sized member jumps');
+    const off=d.head.x<0||d.head.x>1440||d.head.y<0||d.head.y>900;
+    if(off)outside=true;else if(outside)returned=true;
+  }
+  assert.ok(outside&&returned,mode+': dragon exits and returns at '+x+','+y);
+  assert.ok(e.inspect().dragon.members.length>0,'offscreen flight retains the dragon');
+}
+console.log('PASS circle/figure-eight exits and returns at all screen edges/corners in both modes');
+
+// Entering the masthead must not dissolve or reset a recruited dragon.
+for (const mode of ['web', 'flow']) {
+  const control = run(60, mode, 'dragon', 5);
+  const hovered = run(60, mode, 'dragon', 5);
+  assert.ok(hovered.inspect().dragon.rig.length > 0);
+  for (const e of [control, hovered]) e.move(720, 50);
+  hovered.header.emit('mouseenter');
+  for (let i = 1; i <= 180; i++) {
+    const time = 5000 + i * 1000 / 60;
+    control.frame(time);
+    hovered.frame(time);
+  }
+  near(snapshot(hovered), snapshot(control), mode + '/header hover preserves dragon');
+  assert.ok(hovered.inspect().dragon.rig.length > 0);
+  hovered.header.emit('mouseleave');
+  control.frame(8020);
+  hovered.frame(8020);
+  near(snapshot(hovered), snapshot(control), mode + '/header exit preserves dragon');
+}
+console.log('PASS header entry/exit preserves the dragon in both ambient modes');

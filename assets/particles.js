@@ -79,10 +79,9 @@
     dustMovementScale: 0.8
   };
 
-  // State for active card, header, and reading column
+  // State for active card and reading column
   let activeCard = null;
   let activeCardRect = null;
-  let isHeaderHovered = false;
   let cardRectDirty = false;
 
   // Reading pages: the article is a physical obstacle; the dragon follows its
@@ -133,7 +132,7 @@
   }
 
   function dragonCanHunt() {
-    return width >= 640 && readingDragonArmed && mouse.active && !activeCard && !isHeaderHovered &&
+    return width >= 640 && readingDragonArmed && mouse.active && !activeCard &&
       (!articleFlight || !articleFlight.releasing);
   }
 
@@ -341,7 +340,7 @@
   }
 
   function updateArticleFlight(now) {
-    if (width < 640 || !readingDragonArmed || !isOverArticle() || !mouse.active || activeCard || isHeaderHovered) {
+    if (width < 640 || !readingDragonArmed || !isOverArticle() || !mouse.active || activeCard) {
       articleFlight = null;
       return;
     }
@@ -759,14 +758,14 @@
       this.x += this.vx * movementScale;
       this.y += this.vy * movementScale;
 
-      // 5. Viewport boundary wrapping
+      // 5. Only ambient dust wraps; the dragon flies continuously offscreen.
       // A wrap is a discontinuity: never interpolate across the viewport.
-      if (this.x < -25 || this.x > width + 25) {
+      if (!this.isDragonMember && (this.x < -25 || this.x > width + 25)) {
         this.x = this.x < -25 ? width + 25 : -25;
         this.previousX = this.x;
         this.previousY = this.y;
       }
-      if (this.y < -25 || this.y > height + 25) {
+      if (!this.isDragonMember && (this.y < -25 || this.y > height + 25)) {
         this.y = this.y < -25 ? height + 25 : -25;
         this.previousX = this.x;
         this.previousY = this.y;
@@ -1019,10 +1018,6 @@
   function rigSlotTarget(slot, particle = dragon.head) {
     const target = rawRigSlotTarget(slot);
     const boundary = articleHover && !dragonIgnoresArticle(particle) ? articleBounds(8) : null;
-    if (target && boundary) {
-      target.x = Math.max(5, Math.min(width - 5, target.x));
-      target.y = Math.max(5, Math.min(height - 5, target.y));
-    }
     return target && boundary && insideRect(target, boundary) ? nearestEdge(target, boundary) : target;
   }
 
@@ -1865,17 +1860,6 @@
 
   // Attach hover gravity to interactive cards and elements
   function setupInteractiveHooks() {
-    // 0. Header exclusion: mouse over header deactivates dragon
-    const header = document.querySelector('.wrapper-masthead');
-    if (header) {
-      header.addEventListener('mouseenter', () => {
-        isHeaderHovered = true;
-      });
-      header.addEventListener('mouseleave', () => {
-        isHeaderHovered = false;
-      });
-    }
-
     // 1. Post cards: trigger whole-screen slow pull + card blocking + perimeter orbit
     const cards = document.querySelectorAll('.post-card');
     cards.forEach((card) => {
