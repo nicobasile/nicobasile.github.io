@@ -87,16 +87,19 @@
   let activeCardRect = null;
   let cardRectDirty = false;
 
-  // Reading pages: the article is a physical obstacle; the dragon follows its
-  // current gutter briefly while the cursor is over the text.
+  // Articles and the homepage share a content obstacle and gutter flight.
   const readingEl = document.querySelector('article.post.detailed, article.page.detailed');
   const isReadingPage = !!readingEl;
-  let readingDragonArmed = !isReadingPage;
+  const homeColumn = !readingEl && document.querySelector('.home-hero')
+    ? document.getElementById('main') : null;
+  const boundaryEl = readingEl || homeColumn;
+  let readingDragonArmed = !boundaryEl;
   let articleRect = null;
   let articleRectDirty = true;
   let articleHover = false;
   let lastArticleSide = -1;
   let exitingArticle = new WeakSet();
+  let exitingDust = new WeakMap();
 
   function refreshArticleHover() {
     const r = articleBounds(articleHover ? 14 : 6);
@@ -123,9 +126,9 @@
 
 
   function refreshArticleRect() {
-    if (!readingEl) return;
+    if (!boundaryEl) return;
     if (!articleRect || articleRectDirty) {
-      articleRect = readingEl.getBoundingClientRect();
+      articleRect = boundaryEl.getBoundingClientRect();
       articleRectDirty = false;
     }
   }
@@ -137,6 +140,7 @@
   function dragonCanHunt(now = simulationNow) {
     return now >= dragonSpawnAllowedAt && width >= 640 &&
       readingDragonArmed && mouse.active && !activeCard &&
+      (!articleHover || dragon.members.length > 0) &&
       (!articleFlight || !articleFlight.releasing);
   }
 
@@ -144,6 +148,8 @@
   let articleFlight = null;
 
   function articleBounds(padding = 6) {
+    // Card-hover galaxies cross the homepage column, but keep their own wall.
+    if (homeColumn && activeCard) return null;
     if (!articleRect || articleRect.width === 0) return null;
     return { left: articleRect.left - padding, right: articleRect.right + padding,
       top: articleRect.top - padding, bottom: articleRect.bottom + padding };
@@ -238,6 +244,25 @@
     if ((p === dragon.head || p.isDragonMember) && dragonIgnoresArticle(p)) return;
     const r = articleBounds((p.radius || 2) + 4);
     if (!r) { if (soft) p.dustGlance = null; return; }
+    const exit = exitingDust.get(p);
+    if (exit && !p.isDragonMember) {
+      if (insideRect(p, r)) {
+        // Only steer on physics steps; render-only boundary checks never move
+        // these particles. Keep the chosen exit stable as the galaxy unwinds.
+        if (soft) {
+          const distance = exit.nx < 0 ? p.x-r.left : exit.nx > 0 ? r.right-p.x :
+            exit.ny < 0 ? p.y-r.top : r.bottom-p.y;
+          const speed = Math.min(1.8, 0.9 + Math.max(0, distance) * 0.003);
+          p.vx += (exit.nx * speed - p.vx) * 0.025;
+          p.vy += (exit.ny * speed - p.vy) * 0.025;
+          const baseSpeed = Math.hypot(p.baseVx, p.baseVy);
+          p.baseVx += (exit.nx * baseSpeed - p.baseVx) * 0.025;
+          p.baseVy += (exit.ny * baseSpeed - p.baseVy) * 0.025;
+        }
+        return;
+      }
+      exitingDust.delete(p);
+    }
     if (p.isDragonMember) p.dustGlance = null;
     const margin = soft ? ARTICLE.cushion : 0;
     if (p.x < r.left - margin || p.x > r.right + margin ||
@@ -344,7 +369,8 @@
   }
 
   function updateArticleFlight(now) {
-    if (width < 640 || !readingDragonArmed || !isOverArticle() || !mouse.active || activeCard) {
+    if (width < 640 || !readingDragonArmed || !isOverArticle() || !mouse.active || activeCard ||
+        (!articleFlight && dragon.members.length === 0)) {
       articleFlight = null;
       return;
     }
@@ -1807,7 +1833,7 @@
     refreshArticleRect();
     mouse.active = true;
     refreshArticleHover();
-    if (!isOverArticle()) {
+    if (!isOverArticle() && !(homeColumn && activeCard)) {
       articleFlight = null;
       readingDragonArmed = true;
     }
@@ -1833,6 +1859,10 @@
         activeCard = card;
         activeCardRect = card.getBoundingClientRect();
         cardRectDirty = false;
+        if (homeColumn) {
+          exitingDust = new WeakMap();
+          refreshArticleHover();
+        }
       });
 
       card.addEventListener('mouseleave', (e) => {
@@ -1840,6 +1870,19 @@
           if (activeCard === card) {
             activeCard = null;
             activeCardRect = null;
+            if (homeColumn) {
+              articleFlight = null;
+              articleRectDirty = true;
+              refreshArticleRect();
+              for (const p of particles) {
+                const r = articleBounds(p.radius + 4);
+                if (r && insideRect(p, r)) {
+                  exitingDust.set(p, nearestEdge(p, r));
+                  p.dustGlance = null;
+                }
+              }
+              refreshArticleHover();
+            }
           }
         }
       });

@@ -5,7 +5,7 @@ const vm = require('node:vm');
 const path = require('node:path');
 const source = fs.readFileSync(path.join(__dirname, '../assets/particles.js'), 'utf8');
 
-function engine(mode = 'web', reduced = false, readingRect = null) {
+function engine(mode = 'web', reduced = false, readingRect = null, homeRect = null) {
   let now = 0, seed = 123, nextId = 0, allocations = 0, measurements = 0;
   const callbacks = new Map();
   function events(target = {}) {
@@ -33,8 +33,8 @@ function engine(mode = 'web', reduced = false, readingRect = null) {
   } });
   const header = events();
   const document = events({ hidden: false, readyState: 'complete',
-    getElementById: id => id === 'particle-canvas' ? canvas : id === 'dragon-canvas' ? dragonCanvas : null,
-    querySelector: selector => selector === '.wrapper-masthead' ? header : readingRect && selector.startsWith('article.') ? { getBoundingClientRect: () => readingRect } : null, querySelectorAll: selector => selector === '.post-card' ? [card] : [] });
+    getElementById: id => id === 'particle-canvas' ? canvas : id === 'dragon-canvas' ? dragonCanvas : id === 'main' && homeRect ? { getBoundingClientRect: () => homeRect } : null,
+    querySelector: selector => selector === '.home-hero' ? homeRect : selector === '.wrapper-masthead' ? header : readingRect && selector.startsWith('article.') ? { getBoundingClientRect: () => readingRect } : null, querySelectorAll: selector => selector === '.post-card' ? [card] : [] });
   const window = events({ innerWidth: 1440, innerHeight: 900, devicePixelRatio: 2, matchMedia: () => preference });
   const sandbox = { Math: math, performance: { now: () => now }, window, document,
     localStorage: { getItem: () => mode, setItem() {} },
@@ -366,6 +366,7 @@ const oh=overlap.inspect().dragon.head;
 Object.assign(oh,{x:500,y:450,vx:1,vy:0});overlap.boundary(oh);
 assert.equal(oh.x,500,'head may overlap while cursor is outside');
 const member=overlap.inspect().particles[0];Object.assign(member,{x:510,y:450,isDragonMember:true});
+overlap.inspect().dragon.members.push(member);
 overlap.move(398,450);overlap.boundary(oh);overlap.boundary(member);
 assert.equal(oh.x,500,'entering does not project overlapping head');assert.equal(member.x,510,'entering does not project body');
 overlap.headStep(20);const flight=overlap.inspect().articleFlight;
@@ -481,3 +482,50 @@ for(const mode of ['web','flow']) for(const [w,h,viewport] of [[500,240,1440],[2
   assert.ok(e.inspect().particles.every(p=>Number.isFinite(p.vx)&&Number.isFinite(p.vy)));
 }
 console.log('PASS broad galaxy-hover distribution, exit continuity, scrolling and resize in both modes');
+
+for (const mode of ['web', 'flow']) {
+  const rect = {left:350,right:1090,top:150,bottom:3000,width:740};
+  const e = engine(mode, false, null, rect);
+  e.frame(0);
+  const outside = p => p.x <= rect.left-p.radius-4 || p.x >= rect.right+p.radius+4 ||
+    p.y <= rect.top-p.radius-4 || p.y >= rect.bottom+p.radius+4;
+  assert.equal(e.inspect().particles.length,120,'homepage retains full particle count');
+  assert.ok(e.inspect().particles.every(outside),'homepage dust starts outside column');
+  e.move(700,200);
+  for(let i=1;i<=240;i++)e.frame(i*1000/60);
+  assert.equal(e.inspect().dragon.activeWeight,0,'initial column hover stays dormant');
+  e.move(150,450);
+  for(let i=241;i<=360;i++)e.frame(i*1000/60);
+  assert.ok(e.inspect().dragon.members.length>0);
+  e.move(700,200);
+  for(let i=361;i<=720;i++)e.frame(i*1000/60);
+  assert.ok(e.inspect().articleFlight.releasing,'homepage gutter flight releases after five seconds');
+  assert.equal(e.inspect().dragon.members.length,0);
+  assert.ok(e.inspect().particles.every(outside));
+  e.move(600,400);e.card.emit('mouseenter');
+  assert.equal(e.inspect().articleFlight,null,'galaxy clears gutter flight');
+  const p=e.inspect().particles[0];
+  Object.assign(p,{x:900,y:700,vx:0.3,vy:0.2});
+  e.boundary(p,true);
+  assert.equal(p.x,900,'galaxy permits dust inside column');
+  for(let i=721;i<=900;i++)e.frame(i*1000/60);
+  assert.ok(e.inspect().particles.some(p=>!outside(p)),'galaxy actually crosses column');
+  assert.ok(e.inspect().particles.every(p=>p.x<=394 || p.x>=806 || p.y<=244 || p.y>=606),'hovered card stays protected');
+  const beforeExit=e.inspect().particles.map(p=>({p,x:p.x,y:p.y}));
+  e.card.emit('mouseleave');e.move(700,200);e.frame(15020);
+  for(const {p,x,y} of beforeExit)assert.ok(Math.hypot(p.x-x,p.y-y)<10,'no position jump on galaxy exit');
+  assert.ok(e.inspect().particles.some(p=>!outside(p)),'inside particles coast out gradually');
+  assert.equal(e.inspect().dragon.members.length,0,'column hover cannot respawn dissolved dragon');
+  assert.equal(e.inspect().articleFlight,null,'no flight starts for an absent dragon');
+  for(let i=1;i<=2400;i++)e.frame(15020+i*1000/90);
+  assert.ok(e.inspect().particles.every(outside),'exiting particles eventually clear column');
+  assert.equal(e.inspect().dragon.members.length,0,'dragon remains dormant over column');
+  rect.top=-500;e.window.emit('scroll');e.frame(42000);
+  assert.ok(e.inspect().particles.filter(p=>!p.isDragonMember).every(outside));
+  e.window.innerWidth=390;Object.assign(rect,{left:20,right:370,width:350});
+  e.window.emit('resize');e.frame(42020);
+  assert.equal(e.inspect().particles.length,60);
+  assert.equal(e.inspect().dragon.members.length,0);
+  assert.ok(e.inspect().particles.every(outside),'narrow homepage gutters remain clear');
+}
+console.log('PASS homepage column placement, dragon lifecycle, galaxy wall override, scrolling and mobile resize');

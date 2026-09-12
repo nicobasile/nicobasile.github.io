@@ -148,6 +148,16 @@ returning to desktop restores normal activation. Dust physics and counts are unc
 
 ### Reading-page particles
 
+The homepage uses the same dust glancing and dragon gutter behavior around its
+`#main` content column (introduction, posts, and pagination), with its original
+particle count. Hovering a post card temporarily disables the column wall for
+the galaxy swirl; the hovered card itself remains protected. Leaving the card
+restores the column wall for outside particles; particles still inside coast
+out with gentle outward steering before the wall applies to them again.
+An absent dragon can only assemble while the pointer is outside the content
+column; an existing dragon can still finish its gutter glide. Web and Flow both
+respect the column whenever no card is hovered.
+
 The dragon ignores article walls while the cursor is outside the article's 6 px
 padded boundary. Its body, wings, and recruitment strokes render on a separate
 foreground canvas, above article content and below lightboxes, with the same
