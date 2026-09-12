@@ -32,6 +32,9 @@
   let animationFrameId = null;
   const STEP_MS = 1000 / 90;
   const MAX_STEPS = 6;
+  const DRAGON_SPAWN_DELAY_MS = 3000;
+  const dragonSpawnAllowedAt = performance.now() + DRAGON_SPAWN_DELAY_MS;
+  let simulationNow = performance.now();
   let lastFrameAt = null;
   let accumulator = 0;
   let resizeDirty = true;
@@ -131,8 +134,9 @@
     return articleHover;
   }
 
-  function dragonCanHunt() {
-    return width >= 640 && readingDragonArmed && mouse.active && !activeCard &&
+  function dragonCanHunt(now = simulationNow) {
+    return now >= dragonSpawnAllowedAt && width >= 640 &&
+      readingDragonArmed && mouse.active && !activeCard &&
       (!articleFlight || !articleFlight.releasing);
   }
 
@@ -1310,7 +1314,7 @@
     dragon.time += 0.016;
     updateArticleFlight(now);
 
-    if (dragonCanHunt()) {
+    if (dragonCanHunt(now)) {
       dragon.activeWeight = Math.min(1, dragon.activeWeight + 0.05);
     } else {
       dragon.activeWeight = Math.max(0, dragon.activeWeight - 0.035);
@@ -1329,7 +1333,7 @@
     const dx = dragon.head.x - mouse.x;
     const dy = dragon.head.y - mouse.y;
     const dist = Math.hypot(dx, dy) || 0.001;
-    const awake = dragonCanHunt();
+    const awake = dragonCanHunt(now);
     if (!awake || dist <= dragon.pursuitEndDistance) dragon.pursuing = false;
     else if (dist >= dragon.pursuitStartDistance) dragon.pursuing = true;
 
@@ -1469,7 +1473,7 @@
     // Steering acceleration with natural momentum (gentle, unhurried)
     const steerForce = 0.045 + 0.03 * dragon.idleWeight;
     const maxHeadSpeed = (2.4 + 0.7 * dragon.idleWeight) * (1 - 0.6 * dragon.sleepWeight);
-    if (articleRect && articleHover && dragonCanHunt()) {
+    if (articleRect && articleHover && dragonCanHunt(now)) {
       const route = articleRoute(dragon.head, mouse, articleRail());
       if (route && !route.direct) {
         const dx = route.point.x - dragon.head.x, dy = route.point.y - dragon.head.y;
@@ -1693,6 +1697,7 @@
   }
 
   function simulate(now) {
+    simulationNow = now;
     for (const p of particles) {
       p.previousX = p.x;
       p.previousY = p.y;

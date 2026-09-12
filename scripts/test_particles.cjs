@@ -138,11 +138,18 @@ const sleep = run(60,'web','dragon',25); assert.equal(sleep.inspect().dragon.sle
 sleep.move(1010,450); sleep.frame(25000 + 1000/60); assert.ok(sleep.inspect().dragon.sleepWeight < 1);
 console.log('PASS rate changes, render purity/interpolation/wrapping, bounded stalls, visibility, duplicate events, resize/rig reset, reduced motion, sleep/wake');
 
+const delayedSpawn = engine(); delayedSpawn.frame(0); delayedSpawn.move();
+for (let i=1;i<180;i++) delayedSpawn.frame(i*1000/60);
+assert.equal(delayedSpawn.inspect().dragon.members.length,0,'dragon stays absent for first three seconds');
+for (let i=180;i<=240;i++) delayedSpawn.frame(i*1000/60);
+assert.ok(delayedSpawn.inspect().dragon.members.length>0,'dragon can spawn after three seconds');
+console.log('PASS three-second dragon spawn delay after page load');
+
 // Exercise steering without recruitment resetting the head to its seed particle.
 const chase = engine(); chase.frame(0); chase.move(1100, 450);
 const dragon = chase.inspect().dragon;
 Object.assign(dragon.head, { x: 300, y: 450, vx: 0, vy: 0 });
-for (let i = 1; i <= 100; i++) chase.headStep(i * chase.inspect().step);
+for (let i = 1; i <= 100; i++) chase.headStep(3000 + i * chase.inspect().step);
 assert.ok(dragon.head.x > 450, 'distant dragon makes direct progress toward cursor');
 assert.equal(dragon.head.y, 450, 'no circular sideways drift during distant pursuit');
 assert.equal(dragon.pursuing, true);
@@ -152,19 +159,20 @@ assert.equal(dragon.sleepWeight, 0);
 assert.equal(dragon.idleWeight, 0);
 // Within the transition band, the orbit starts to return gradually.
 Object.assign(dragon.head, { x: 900, y: 450, vx: 0, vy: 0 });
-chase.headStep(1000);
+chase.headStep(3001);
 assert.ok(dragon.head.vx > 0 && Math.abs(dragon.head.vy) > 0);
 assert.equal(dragon.pursuing, true);
 // At the original orbit radius the original tangential steering is unchanged.
 Object.assign(dragon.head, { x: 1100 - dragon.orbitRadius, y: 450, vx: 0, vy: 0 });
-chase.headStep(1000);
+dragon.turnVelocity = 0;
+chase.headStep(3001);
 assert.equal(dragon.pursuing, false);
 assert.equal(dragon.head.vx, 0);
 assert.ok(Math.abs(Math.abs(dragon.head.vy) - dragon.orbitSpeed * 0.045) < 1e-10);
 // A new distant target exits idle choreography and redirects the dragon.
 dragon.idleWeight = 1;
 chase.move(100, 100);
-chase.headStep(1000);
+chase.headStep(3001);
 assert.equal(dragon.pursuing, true);
 assert.ok(dragon.idleWeight < 1);
 chase.card.emit('mouseenter'); chase.headStep(1000);
@@ -176,7 +184,7 @@ for (const side of [-1, 1]) {
   const rect = {left:350,right:1090,top:160,bottom:4000,width:740};
   const reading = engine('web', false, rect); reading.frame(0);
   reading.move(side < 0 ? 160 : 1280, 450);
-  for (let i=1;i<=180;i++) reading.frame(i*1000/90);
+  for (let i=1;i<=360;i++) reading.frame(i*1000/90);
   const d = reading.inspect().dragon;
   Object.assign(d.head, {x:side < 0 ? 180 : 1250,y:450,vx:0,vy:1});
   // Enter on the opposite half of the text: the dragon's side wins.
@@ -185,7 +193,7 @@ for (const side of [-1, 1]) {
   for (let i=1;i<=400;i++) {
     if(i===180) reading.move(side < 0 ? 420 : 1000,550);
     if(i===240) { rect.top=-1500; reading.window.emit('scroll'); }
-    reading.frame(2000+i*1000/90);
+    reading.frame(4000+i*1000/90);
     assert.equal(reading.inspect().articleFlight.side,side);
     assert.ok(side < 0 ? d.head.x < rect.left : d.head.x > rect.right);
     minY=Math.min(minY,d.head.y);maxY=Math.max(maxY,d.head.y);
@@ -193,7 +201,7 @@ for (const side of [-1, 1]) {
   }
   assert.ok(maxY-minY>40,'dragon follows a curve in the gutter');
   assert.ok(d.members.length>0,'dragon is still assembled before five seconds');
-  for(let i=401;i<=520;i++) reading.frame(2000+i*1000/90);
+  for(let i=401;i<=520;i++) reading.frame(4000+i*1000/90);
   assert.equal(d.members.length,0);
   assert.equal(d.rig.length,0);
   assert.ok(reading.inspect().particles.every(p=>!p.isDragonMember),'spine and appendages all release');
@@ -248,6 +256,7 @@ let lastHeading=null, leftLobe=false, rightLobe=false;
 for(let i=1;i<=1700;i++) {
   choreography.frame(i*1000/90);
   const d=choreography.inspect().dragon;
+  if(d.activeWeight===0) continue;
   const heading=Math.atan2(d.head.vy,d.head.vx);
   if(lastHeading!==null) {
     const delta=Math.atan2(Math.sin(heading-lastHeading),Math.cos(heading-lastHeading));
@@ -342,8 +351,10 @@ for (const mode of ['web','flow']) for (const viewport of [1440,390]) {
   assert.equal(e.inspect().dragon.members.length,0);
   assert.equal(e.inspect().articleFlight,null);
   e.move(rect.left-15,450);e.frame(1517);
-  assert.equal(e.inspect().dragon.activeWeight>0,viewport>=640,'dragon only enabled on desktop');
-  e.move((rect.left+rect.right)/2,450);e.frame(1534);
+  assert.equal(e.inspect().dragon.activeWeight,0,'dragon remains suppressed during startup delay');
+  for(let i=92;i<=181;i++)e.frame(i*1000/60);
+  assert.equal(e.inspect().dragon.activeWeight>0,viewport>=640,'dragon only enabled on desktop after startup delay');
+  e.move((rect.left+rect.right)/2,450);e.frame(3050);
   assert.equal(!!e.inspect().articleFlight,viewport>=640,'article flight only enabled on desktop');
 }
 console.log('PASS article reload placement and initial-hover dragon suppression on desktop/mobile in both modes');
@@ -376,16 +387,16 @@ console.log('PASS all-edge unrestricted steering and foreground canvas resize');
 
 for(const mode of ['web','flow']) {
   const e=engine(mode);e.frame(0);e.move(500,450);
-  for(let i=1;i<=90;i++)e.frame(i*1000/90);
+  for(let i=1;i<=360;i++)e.frame(i*1000/90);
   assert.ok(e.inspect().dragon.members.length>0);
-  e.window.innerWidth=639;e.window.emit('resize');e.frame(1012);
+  e.window.innerWidth=639;e.window.emit('resize');e.frame(4012);
   assert.equal(e.inspect().dragon.activeWeight,0);assert.equal(e.inspect().dragon.rig.length,0);
   assert.equal(e.inspect().dragon.members.length,0);assert.equal(e.inspect().particles.length,60);
   e.move(300,400);e.window.emit('pointerdown',{clientX:300,clientY:400});
-  for(let i=1;i<=180;i++)e.frame(1012+i*1000/90);
+  for(let i=1;i<=180;i++)e.frame(4012+i*1000/90);
   assert.equal(e.inspect().dragon.activeWeight,0);assert.equal(e.inspect().dragon.members.length,0);
   assert.equal(e.inspect().articleFlight,null);
-  e.window.innerWidth=640;e.window.emit('resize');e.frame(3024);e.move(300,450);e.frame(3040);
+  e.window.innerWidth=640;e.window.emit('resize');e.frame(6024);e.move(300,450);e.frame(6040);
   assert.ok(e.inspect().dragon.activeWeight>0);assert.equal(e.inspect().particles.length,120);
 }
 console.log('PASS mobile dragon suppression, taps, and 639/640 px breakpoint transitions');
