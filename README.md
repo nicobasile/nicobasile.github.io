@@ -154,8 +154,11 @@ particle count. Hovering a post card temporarily disables the column wall for
 the galaxy swirl; the hovered card itself remains protected. Leaving the card
 restores the column wall for outside particles; particles still inside coast
 out with gentle outward steering before the wall applies to them again.
-An absent dragon can only assemble while the pointer is outside the content
-column; an existing dragon can still finish its gutter glide. Web and Flow both
+An absent dragon assembles on a primary click or after five continuous seconds
+in an activation area outside the content column. Entering the column, hovering
+a galaxy card, or leaving the page resets the timer. Clicks in the column or on
+galaxy cards do not queue activation, and time since page load does not count.
+An existing dragon can still finish its gutter glide. Web and Flow both
 respect the column whenever no card is hovered.
 
 The dragon ignores article walls while the cursor is outside the article's 6 px
@@ -201,6 +204,9 @@ article walls before contact to leave more room for its body.
 Particle density is 84 on desktop reading pages and 42 on mobile reading pages
 (30% below the usual 120/60). `config.dustMovementScale` is 0.8 on all pages,
 reducing dust movement by 20% while dragon members retain their full speed.
+Quiet Web/Flow drift uses an additional `config.ambientMovementScale` of 0.75
+(25% slower); galaxy swirls, navigation attraction, and column exits keep their
+existing movement scale.
 
 Dragon members fly continuously beyond viewport edges and return along their normal
 orbits. Only ambient dust wraps to the opposite edge, including particles released

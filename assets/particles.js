@@ -32,9 +32,9 @@
   let animationFrameId = null;
   const STEP_MS = 1000 / 90;
   const MAX_STEPS = 6;
-  const DRAGON_SPAWN_DELAY_MS = 3000;
-  const dragonSpawnAllowedAt = performance.now() + DRAGON_SPAWN_DELAY_MS;
-  let simulationNow = performance.now();
+  let dragonActivationRequested = false;
+  const DRAGON_ACTIVATION_DELAY_MS = 5000;
+  let dragonActivationStartedAt = null;
   let lastFrameAt = null;
   let accumulator = 0;
   let resizeDirty = true;
@@ -79,7 +79,8 @@
     maxDistance: 95,
     damping: 0.965,
     ambientSpeed: 0.45,
-    dustMovementScale: 0.8
+    dustMovementScale: 0.8,
+    ambientMovementScale: 0.75
   };
 
   // State for active card and reading column
@@ -137,11 +138,28 @@
     return articleHover;
   }
 
-  function dragonCanHunt(now = simulationNow) {
-    return now >= dragonSpawnAllowedAt && width >= 640 &&
+  function dragonCanHunt() {
+    return (dragon.members.length > 0 || dragonActivationRequested) && width >= 640 &&
       readingDragonArmed && mouse.active && !activeCard &&
       (!articleHover || dragon.members.length > 0) &&
       (!articleFlight || !articleFlight.releasing);
+  }
+
+  function resetDragonActivation() {
+    dragonActivationRequested = false;
+    dragonActivationStartedAt = null;
+  }
+
+  function refreshDragonActivation(now) {
+    const eligible = enabled && !document.hidden && width >= 640 &&
+      readingDragonArmed && mouse.active && !activeCard && !articleHover;
+    if (!eligible) resetDragonActivation();
+    else {
+      if (dragonActivationStartedAt === null) dragonActivationStartedAt = now;
+      if (now - dragonActivationStartedAt >= DRAGON_ACTIVATION_DELAY_MS) {
+        dragonActivationRequested = true;
+      }
+    }
   }
 
   const ARTICLE = { clearance: 48, cushion: 32, dragonCushion: 80, releaseDelay: 5000 };
@@ -744,8 +762,10 @@
         }
       }
 
-      // Slow dust (including hover motion) without changing dragon physics.
-      const movementScale = this.isDragonMember ? 1 : config.dustMovementScale;
+      // Slow quiet drift while retaining galaxy, exit, and dragon motion.
+      const ambientScale = activeCard || pointAttractor.active || exitingDust.has(this)
+        ? 1 : config.ambientMovementScale;
+      const movementScale = this.isDragonMember ? 1 : config.dustMovementScale * ambientScale;
       this.x += this.vx * movementScale;
       this.y += this.vy * movementScale;
 
@@ -1337,10 +1357,11 @@
   }
 
   function updateDragonHead(now) {
+    refreshDragonActivation(now);
     dragon.time += 0.016;
     updateArticleFlight(now);
 
-    if (dragonCanHunt(now)) {
+    if (dragonCanHunt()) {
       dragon.activeWeight = Math.min(1, dragon.activeWeight + 0.05);
     } else {
       dragon.activeWeight = Math.max(0, dragon.activeWeight - 0.035);
@@ -1359,7 +1380,7 @@
     const dx = dragon.head.x - mouse.x;
     const dy = dragon.head.y - mouse.y;
     const dist = Math.hypot(dx, dy) || 0.001;
-    const awake = dragonCanHunt(now);
+    const awake = dragonCanHunt();
     if (!awake || dist <= dragon.pursuitEndDistance) dragon.pursuing = false;
     else if (dist >= dragon.pursuitStartDistance) dragon.pursuing = true;
 
@@ -1499,7 +1520,7 @@
     // Steering acceleration with natural momentum (gentle, unhurried)
     const steerForce = 0.045 + 0.03 * dragon.idleWeight;
     const maxHeadSpeed = (2.4 + 0.7 * dragon.idleWeight) * (1 - 0.6 * dragon.sleepWeight);
-    if (articleRect && articleHover && dragonCanHunt(now)) {
+    if (articleRect && articleHover && dragonCanHunt()) {
       const route = articleRoute(dragon.head, mouse, articleRail());
       if (route && !route.direct) {
         const dx = route.point.x - dragon.head.x, dy = route.point.y - dragon.head.y;
@@ -1723,7 +1744,6 @@
   }
 
   function simulate(now) {
-    simulationNow = now;
     for (const p of particles) {
       p.previousX = p.x;
       p.previousY = p.y;
@@ -1811,6 +1831,7 @@
   }
 
   function stop(clear = true) {
+    resetDragonActivation();
     if (animationFrameId !== null) cancelAnimationFrame(animationFrameId);
     animationFrameId = null;
     lastFrameAt = null;
@@ -1843,10 +1864,16 @@
       mouse.hasMoved = true;
     }
     mouse.active = true;
+    refreshDragonActivation(performance.now());
   }
 
-  function onPointerDown() {
+  function onPointerDown(e) {
     if (!enabled) return;
+    if (e && Number.isFinite(e.clientX) && Number.isFinite(e.clientY)) onPointerMove(e);
+    if ((!e || e.button === undefined || e.button === 0) && width >= 640 &&
+        mouse.active && readingDragonArmed && !activeCard && !articleHover) {
+      dragonActivationRequested = true;
+    }
     lastMoveAt = (typeof performance !== 'undefined' ? performance.now() : Date.now());
   }
 
@@ -1857,6 +1884,7 @@
     cards.forEach((card) => {
       card.addEventListener('mouseenter', () => {
         activeCard = card;
+        resetDragonActivation();
         activeCardRect = card.getBoundingClientRect();
         cardRectDirty = false;
         if (homeColumn) {
@@ -1928,6 +1956,7 @@
   });
 
   window.addEventListener('resize', () => {
+    if (window.innerWidth < 640) resetDragonActivation();
     resizeDirty = true;
     cardRectDirty = articleRectDirty = true;
   });
@@ -1941,6 +1970,7 @@
   window.addEventListener('pointerdown', onPointerDown, { passive: true });
   document.addEventListener('mouseleave', () => {
     mouse.active = false;
+    resetDragonActivation();
   });
 
   function init() {
