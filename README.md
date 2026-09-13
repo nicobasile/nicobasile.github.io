@@ -205,8 +205,8 @@ Particle density is 84 on desktop reading pages and 42 on mobile reading pages
 (30% below the usual 120/60). `config.dustMovementScale` is 0.8 on all pages,
 reducing dust movement by 20% while dragon members retain their full speed.
 Quiet Web/Flow drift uses an additional `config.ambientMovementScale` of 0.75
-(25% slower); galaxy swirls, navigation attraction, and column exits keep their
-existing movement scale.
+(25% slower); navigation attraction and column exits keep their existing movement
+scale. Galaxy swirl rotation is also 25% slower, with its radial steering unchanged.
 
 Dragon members fly continuously beyond viewport edges and return along their normal
 orbits. Only ambient dust wraps to the opposite edge, including particles released

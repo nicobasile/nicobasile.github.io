@@ -678,7 +678,7 @@
         const tx = -rx*Math.sin(theta), ty = ry*Math.cos(theta);
         const tangentLength = Math.hypot(tx,ty) || 1;
         const distance = Math.hypot(dx,dy) || 1;
-        const speed = 2.7*this.orbitSpeedFactor/Math.sqrt(Math.max(1,rho/1.5));
+        const speed = 2.025*this.orbitSpeedFactor/Math.sqrt(Math.max(1,rho/1.5));
         const desiredX = tx/tangentLength*speed + dx/distance*radial;
         const desiredY = ty/tangentLength*speed + dy/distance*radial;
         this.vx += (desiredX-this.vx)*0.035;
