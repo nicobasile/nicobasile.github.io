@@ -1,93 +1,48 @@
 ---
 layout: default
+home: true
 ---
 
-<div class="home-hero">
-  <h1 class="hero-title">Notes on learning and intelligence.</h1>
-  <p class="hero-subtitle">
-    I'm interested in how models learn through interaction and how to make training and inference more efficient. At Google, I'm developing learned optimizations for TPU compilers. My personal research explores learning in simulated environments and its transfer to physical robots.
-  </p>
-</div>
-
-<section class="posts-section">
-  <div class="section-header">
-    <h2 class="section-title" id="articles-heading">Selected work</h2>
-    <span class="section-count" id="posts-count-indicator">{{ site.posts.size }} {% if site.posts.size == 1 %}article{% else %}articles{% endif %}</span>
+<section class="home-profile" id="about" aria-labelledby="profile-name">
+  <h1 id="profile-name" class="hero-title">Nicolas Basile</h1>
+  <div class="profile-bio">
+    <p>ML engineer at Google, developing learned compiler optimizations for TPUs using graph neural networks and reinforcement learning. Previously, I worked on model post-training and inference optimization at VMware, including contributions to vLLM.</p>
+    <p>My personal research focuses on embodied AI and robotics. Currently exploring robotics foundation models, reproducing and fine-tuning the latest VLA and RL research in simulation (MuJoCo/MJX), and running small-scale real robot experiments.</p>
   </div>
+  <div class="profile-links" aria-label="Contact and profiles">
+    <a href="mailto:{{ site.footer-links.email }}">Email</a>
+    <a href="https://github.com/{{ site.footer-links.github }}">GitHub</a>
+    <a href="https://www.linkedin.com/in/{{ site.footer-links.linkedin }}">LinkedIn</a>
+    <a href="{{ '/assets/Nicolas_Basile_Resume.pdf' | relative_url }}">Résumé <span class="link-detail">(PDF)</span></a>
+  </div>
+</section>
 
+<section class="posts-section" id="writing" aria-labelledby="articles-heading">
+  <div class="section-header">
+    <h2 class="section-title" id="articles-heading">Selected writing</h2>
+    <span class="section-context">Independent research</span>
+  </div>
   <div class="post-cards-grid" id="posts-grid">
     {% for post in paginator.posts %}
-      <article class="post-card" 
-               data-particle-attract="card" 
-               data-url="{{ site.baseurl }}{{ post.url }}" 
-               data-categories="{% for category in post.categories %}{{ category | slugize }} {% endfor %}"
-               tabindex="0"
-               role="link"
-               aria-label="{{ post.title }}">
+    <article class="post-card">
+      <div class="post-card-copy">
         <div class="post-card-meta">
-          <div class="post-card-categories">
-            {% for category in post.categories %}
-              <span class="category-chip">
-                {{ category | replace: "-", " " }}
-              </span>
-            {% endfor %}
-          </div>
-          <div class="post-card-stats">
-            <time datetime="{{ post.date | date_to_xmlschema }}" class="post-card-date">{{ post.date | date: "%b %e, %Y" }}</time>
-            <span class="meta-dot">&middot;</span>
-            {% assign words = post.content | number_of_words %}
-            {% assign read_time = words | divided_by: 200 | at_least: 1 %}
-            <span class="post-card-readtime">{{ read_time }} min read</span>
-          </div>
+          <time datetime="{{ post.date | date_to_xmlschema }}">{{ post.date | date: "%B %Y" }}</time>
+          {% if post.categories.first %}<span>{{ post.categories.last | replace: '-', ' ' }}</span>{% endif %}
         </div>
-
-        <h3 class="post-card-title">
-          <a href="{{ site.baseurl }}{{ post.url }}">{{ post.title }}</a>
-        </h3>
-
-        {% if post.media_url %}
-        <div class="post-card-media-grid{% if post.media_frame %} frame-{{ post.media_frame }}{% endif %}{% if post.media_crop %} crop-{{ post.media_crop }}{% endif %} {% if post.media_url_2 %}has-dual-media{% else %}single-media{% endif %}">
-          <div class="post-card-media-item">
-            {% assign card_alt = post.media_alt | default: post.title %}
-            {% include media.html url=post.media_url type=post.media_type poster=post.media_poster alt=card_alt class="post-card-media-asset" sizes="(max-width: 700px) 46vw, 400px" %}
-            {% if post.media_label %}
-              <span class="post-card-media-tag">{{ post.media_label }}</span>
-            {% endif %}
-          </div>
-
-          {% if post.media_url_2 %}
-          <div class="post-card-media-item secondary-media">
-            {% assign card_alt = post.media_alt_2 | default: post.title %}
-            {% include media.html url=post.media_url_2 type=post.media_type_2 poster=post.media_poster_2 alt=card_alt class="post-card-media-asset" sizes="(max-width: 700px) 46vw, 400px" %}
-            {% if post.media_label_2 %}
-              <span class="post-card-media-tag">{{ post.media_label_2 }}</span>
-            {% endif %}
-          </div>
-          {% endif %}
-        </div>
-        {% endif %}
-
-        <div class="post-card-hook">
-          {% if post.hook %}
-            <p>{{ post.hook }}</p>
-          {% elsif post.description %}
-            <p>{{ post.description }}</p>
-          {% else %}
-            <p>{{ post.content | strip_html | strip_newlines | truncatewords: 34 }}</p>
-          {% endif %}
-        </div>
-
-        <div class="post-card-footer">
-          <a href="{{ site.baseurl }}{{ post.url }}" class="post-card-link">
-            <span>Read article</span>
-            <span class="link-arrow" aria-hidden="true">&rarr;</span>
-          </a>
-        </div>
-      </article>
+        <h3 class="post-card-title"><a href="{{ post.url | relative_url }}">{{ post.list_title | default: post.title }}</a></h3>
+        <p class="post-card-hook">{% if post.list_summary %}{{ post.list_summary }}{% else %}{{ post.description | default: post.excerpt | strip_html }}{% endif %}</p>
+        <a href="{{ post.url | relative_url }}" class="post-card-link">Read experiment <span aria-hidden="true">↗</span><span class="visually-hidden">: {{ post.list_title | default: post.title }}</span></a>
+      </div>
+      {% if post.media_url %}
+      <div class="post-card-preview">
+        {% assign preview_alt = post.media_alt | default: post.title %}
+        {% include media.html url=post.media_url type=post.media_type poster=post.media_poster alt=preview_alt class="post-card-media" controls=true sizes="(max-width: 680px) 92vw, 300px" %}
+      </div>
+      {% endif %}
+    </article>
     {% endfor %}
-
   </div>
-
   <!-- Pagination -->
   {% if paginator.total_pages > 1 %}
   <nav class="pagination-nav" aria-label="Page navigation">
@@ -118,4 +73,23 @@ layout: default
     </div>
   </nav>
   {% endif %}
+</section>
+
+
+<section class="home-experience" id="experience" aria-labelledby="experience-heading">
+  <div class="section-header"><h2 class="section-title" id="experience-heading">Selected experience</h2></div>
+  <article class="experience-role">
+    <div class="experience-heading"><h3>Google</h3><span>Mar 2025 – present</span></div>
+    <p class="experience-title">Software Engineer</p>
+    <p>Learned TPU compiler optimizations with GNNs and reinforcement learning; low-precision execution and numerical debugging.</p>
+  </article>
+  <article class="experience-role">
+    <div class="experience-heading"><h3>VMware</h3><span>Feb 2022 – Feb 2024</span></div>
+    <p class="experience-title">Machine Learning Engineer</p>
+    <p>Model post-training for tool use, vLLM kernel contributions, and distributed inference optimization.</p>
+  </article>
+</section>
+<section class="home-education" aria-label="Education">
+  <p>University of Southern California</p>
+  <p>B.S. Computer Science · B.S. Business Administration · 2021</p>
 </section>

@@ -1,5 +1,7 @@
 ---
 layout: post
+list_title: "Memory and policy optimization for long-horizon agents"
+list_summary: "Extending a Voyager-style agent with hierarchical memory and DSPy-driven optimization for long-horizon tasks in Minecraft."
 title: Enhancing Long-Horizon Embodied Agents in Open-World 3D Environments
 categories: [embodied-ai, agents]
 author: Nicolas Basile

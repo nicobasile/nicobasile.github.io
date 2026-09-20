@@ -19,7 +19,9 @@
 
   // Check user preference
   const motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)');
-  let enabled = !motionPreference.matches;
+  let requested = false;
+  let enabled = false;
+  const toggle = document.getElementById('particles-toggle');
 
   const canvas = document.getElementById('particle-canvas');
   if (!canvas) return;
@@ -91,7 +93,7 @@
   // Articles and the homepage share a content obstacle and gutter flight.
   const readingEl = document.querySelector('article.post.detailed, article.page.detailed');
   const isReadingPage = !!readingEl;
-  const homeColumn = !readingEl && document.querySelector('.home-hero')
+  const homeColumn = !readingEl && document.querySelector('.home-profile, .home-hero')
     ? document.getElementById('main') : null;
   const boundaryEl = readingEl || homeColumn;
   let readingDragonArmed = !boundaryEl;
@@ -1949,11 +1951,18 @@
   });
   window.addEventListener('pagehide', () => stop(false));
   window.addEventListener('pageshow', start);
-  motionPreference.addEventListener('change', () => {
-    enabled = !motionPreference.matches;
+  function syncEnabled() {
+    enabled = requested && !motionPreference.matches;
+    if (toggle) {
+      toggle.setAttribute('aria-pressed', String(requested));
+      toggle.title = requested && motionPreference.matches
+        ? 'Particles are paused by your reduced-motion setting'
+        : requested ? 'Turn particles off' : 'Turn particles on';
+    }
     if (enabled) start();
     else stop();
-  });
+  }
+  motionPreference.addEventListener('change', syncEnabled);
 
   window.addEventListener('resize', () => {
     if (window.innerWidth < 640) resetDragonActivation();
@@ -1974,6 +1983,19 @@
   });
 
   function init() {
+    if (toggle) toggle.addEventListener('click', () => {
+      requested = !requested;
+      syncEnabled();
+      if (!requested) {
+        resetDragon();
+        for (const p of particles) {
+          p.isDragonMember = false;
+          p.dragonWeight = 0;
+        }
+        mouse.active = mouse.hasMoved = false;
+      }
+    });
+    syncEnabled();
     setupInteractiveHooks();
     const modeBtn = document.getElementById('particle-mode');
     if (modeBtn) {

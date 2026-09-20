@@ -5,7 +5,7 @@ const vm = require('node:vm');
 const path = require('node:path');
 const source = fs.readFileSync(path.join(__dirname, '../assets/particles.js'), 'utf8');
 
-function engine(mode = 'web', reduced = false, readingRect = null, homeRect = null) {
+function engine(mode = 'web', reduced = false, readingRect = null, homeRect = null, optIn = true) {
   let now = 0, seed = 123, nextId = 0, allocations = 0, measurements = 0;
   const callbacks = new Map();
   function events(target = {}) {
@@ -32,9 +32,10 @@ function engine(mode = 'web', reduced = false, readingRect = null, homeRect = nu
     measurements++; return { left: 400, right: 800, top: 250, bottom: 600 };
   } });
   const header = events();
+  const toggle = events({ attrs: {}, setAttribute(key, value) { this.attrs[key] = value; } });
   const document = events({ hidden: false, readyState: 'complete',
-    getElementById: id => id === 'particle-canvas' ? canvas : id === 'dragon-canvas' ? dragonCanvas : id === 'main' && homeRect ? { getBoundingClientRect: () => homeRect } : null,
-    querySelector: selector => selector === '.home-hero' ? homeRect : selector === '.wrapper-masthead' ? header : readingRect && selector.startsWith('article.') ? { getBoundingClientRect: () => readingRect } : null, querySelectorAll: selector => selector === '.post-card' ? [card] : [] });
+    getElementById: id => id === 'particles-toggle' ? toggle : id === 'particle-canvas' ? canvas : id === 'dragon-canvas' ? dragonCanvas : id === 'main' && homeRect ? { getBoundingClientRect: () => homeRect } : null,
+    querySelector: selector => selector === '.home-profile, .home-hero' ? homeRect : selector === '.wrapper-masthead' ? header : readingRect && selector.startsWith('article.') ? { getBoundingClientRect: () => readingRect } : null, querySelectorAll: selector => selector === '.post-card' ? [card] : [] });
   const window = events({ innerWidth: 1440, innerHeight: 900, devicePixelRatio: 2, matchMedia: () => preference });
   const sandbox = { Math: math, performance: { now: () => now }, window, document,
     localStorage: { getItem: () => mode, setItem() {} },
@@ -53,7 +54,8 @@ function engine(mode = 'web', reduced = false, readingRect = null, homeRect = nu
     globalThis.testRender = render;
     globalThis.setMode = setAmbientMode;
     function init() {`), sandbox);
-  return { window, document, preference, card, header, ctx, dragonCanvas, inspect: sandbox.inspect, render: sandbox.testRender, headStep: sandbox.testHead, steer: sandbox.testSteer, wall: sandbox.testWall, boundary: sandbox.testBoundary, route: sandbox.testRoute, crosses: sandbox.testCrosses, setMode: sandbox.setMode,
+  if (optIn) toggle.emit('click');
+  return { window, document, preference, toggle, card, header, ctx, dragonCanvas, inspect: sandbox.inspect, render: sandbox.testRender, headStep: sandbox.testHead, steer: sandbox.testSteer, wall: sandbox.testWall, boundary: sandbox.testBoundary, route: sandbox.testRoute, crosses: sandbox.testCrosses, setMode: sandbox.setMode,
     pending: () => callbacks.size, allocations: () => allocations, measurements: () => measurements,
     frame(time) { now = time; const jobs = [...callbacks.values()]; callbacks.clear(); jobs.forEach(fn => fn(now)); },
     move(x = 1000, y = 450) { window.emit('pointermove', { clientX: x, clientY: y }); },
@@ -561,3 +563,35 @@ for (const mode of ['web', 'flow']) {
   assert.ok(e.inspect().particles.every(outside),'narrow homepage gutters remain clear');
 }
 console.log('PASS homepage column placement, dragon lifecycle, galaxy wall override, scrolling and mobile resize');
+
+// The public footer is off by default; lifecycle events cannot opt the user in.
+const gated = engine('web', false, null, {left:350,right:1090,top:150,bottom:3000,width:740}, false);
+assert.equal(gated.pending(), 0);
+assert.equal(gated.toggle.attrs['aria-pressed'], 'false');
+gated.move(150,450); gated.pointAndClick(150,450);
+gated.window.emit('pageshow'); gated.document.emit('visibilitychange');
+gated.preference.emit('change');
+assert.equal(gated.pending(), 0);
+gated.toggle.emit('click');
+assert.equal(gated.pending(), 1);
+assert.equal(gated.toggle.attrs['aria-pressed'], 'true');
+gated.frame(0); gated.pointAndClick(150,450);
+for (let i=1;i<=120;i++) gated.frame(i*1000/60);
+assert.ok(gated.inspect().dragon.members.length>0);
+let clears=0; gated.ctx.clearRect=()=>clears++;
+gated.toggle.emit('click');
+assert.equal(gated.pending(), 0);
+assert.equal(gated.toggle.attrs['aria-pressed'], 'false');
+assert.ok(clears>=1, 'turning off clears the visible canvas');
+assert.equal(gated.inspect().dragon.members.length, 0);
+gated.window.emit('pageshow'); gated.preference.emit('change');
+assert.equal(gated.pending(), 0);
+gated.toggle.emit('click'); gated.frame(3000);
+assert.equal(gated.pending(), 1);
+assert.equal(gated.inspect().dragon.members.length, 0, 're-enabling requires a fresh dragon activation');
+gated.preference.matches=true; gated.preference.emit('change');
+assert.equal(gated.pending(),0);
+gated.toggle.emit('click');
+gated.preference.matches=false; gated.preference.emit('change');
+assert.equal(gated.pending(),0, 'reduced-motion change does not override an off toggle');
+console.log('PASS footer default-off, opt-in, canvas clearing, restart, side-gutter dragon activation, and reduced-motion gating');

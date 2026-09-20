@@ -4,6 +4,28 @@ Personal site and research notes on embodied AI, robot policy training, and acce
 
 Built with [Jekyll](https://jekyllrb.com/) and hosted on GitHub Pages.
 
+## Editorial homepage
+
+Home combines the biography, selected writing, experience, and education. `/about/`
+redirects to `/#about`. Contact links include `assets/Nicolas_Basile_Resume.pdf`.
+Replace that PDF when updating the public résumé.
+
+Homepage posts use optional `list_title` and `list_summary` front matter, keeping
+article titles and permalinks unchanged. Each entry uses one larger, muted looping
+preview via the shared media include. Videos autoplay while visible, pause offscreen,
+and respect reduced-motion settings; native controls allow manual playback. Previews
+are 300 pixels wide on desktop and stack at full width on smaller screens. Post titles
+and reading links use native link behavior.
+
+The footer's “Particles <>” button toggles ambient particles and the dragon in
+place. It starts off on every page and does not persist a preference. When enabled,
+the original side-gutter behavior protects the homepage and article reading columns.
+Turning it off cancels animation and clears both canvases. Reduced-motion settings
+pause the effect even when selected; no separate experiment page is needed.
+The historical particle/media profiling notes below describe the engine and
+previous paired-video homepage; assertions expecting two previews per article do not
+apply to the editorial index.
+
 ## Running locally
 
 ```bash

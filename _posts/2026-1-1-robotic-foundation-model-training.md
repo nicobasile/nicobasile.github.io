@@ -1,5 +1,7 @@
 ---
 layout: post
+list_title: "Mixing real and simulated data for VLA fine-tuning"
+list_summary: "A six-way data-mixture ablation on an SO-101 arm.<br>Pick-and-place success increased from 8% to 84%."
 title: Anchoring Simulation Physics To Reality - VLA Fine-Tuning 
 categories: [embodied-ai, robotics]
 author: Nicolas Basile
